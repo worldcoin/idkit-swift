@@ -1,10 +1,10 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 5.8
 
 import PackageDescription
 
 let package = Package(
 	name: "idkit-swift",
-	platforms: [.macOS(.v13), .iOS(.v15), .watchOS(.v8)],
+	platforms: [.macOS(.v13), .iOS(.v15), .watchOS(.v8), .tvOS(.v15)],
 	products: [
 		.library(name: "IDKit", targets: ["IDKit"]),
 	],
@@ -23,7 +23,7 @@ let package = Package(
 				.product(name: "web3.swift", package: "web3.swift"),
 			],
 			path: "./src",
-			swiftSettings: [.enableExperimentalFeature("StrictConcurrency"), .swiftLanguageVersion(.v5)]
+			swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
 		),
 		.testTarget(
 			name: "IDKitTests",
