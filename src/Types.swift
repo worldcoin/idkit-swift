@@ -92,22 +92,22 @@ struct Payload: Codable {
 }
 
 struct CreateRequestPayload: Codable {
-    let app_id: String
-    let action: String
-    let signal: String
-    let action_description: Optional<String>
-    let verification_level: VerificationLevel
+	let app_id: String
+	let action: String
+	let signal: String
+	let action_description: Optional<String>
+	let verification_level: VerificationLevel
 
-    func encrypt(with key: SymmetricKey, nonce: AES.GCM.Nonce) throws -> Payload {
-        let sealedBox = try AES.GCM.seal(JSONEncoder().encode(self), using: key, nonce: nonce)
-        var payload = sealedBox.ciphertext
-        payload.append(sealedBox.tag)
+	func encrypt(with key: SymmetricKey, nonce: AES.GCM.Nonce) throws -> Payload {
+		let sealedBox = try AES.GCM.seal(JSONEncoder().encode(self), using: key, nonce: nonce)
+		var payload = sealedBox.ciphertext
+		payload.append(sealedBox.tag)
 
-        return Payload(
-            iv: nonce.withUnsafeBytes { Data($0).base64EncodedString() },
-            payload: payload.base64EncodedString()
-        )
-    }
+		return Payload(
+			iv: nonce.withUnsafeBytes { Data($0).base64EncodedString() },
+			payload: payload.base64EncodedString()
+		)
+	}
 }
 
 public struct AppID {
@@ -121,7 +121,7 @@ public struct AppID {
 		rawId.starts(with: "app_staging_")
 	}
 
-	public init(_ app_id: String) throws(AppIDError) {
+	public init(_ app_id: String) throws {
 		guard app_id.starts(with: "app_") else {
 			throw AppIDError.invalidAppID
 		}
@@ -163,10 +163,21 @@ public struct BridgeURL: Sendable, Equatable {
 
 	let rawURL: URL
 
-	public init(_ url: URL) throws(BridgeURLError) {
-		if url.host() == "localhost" || url.host() == "127.0.0.1" {
-			rawURL = url
-			return
+	public init(_ url: URL) throws {
+		if #available(iOS 16.0, *) {
+			if url.host() == "localhost" || url.host() == "127.0.0.1" {
+				rawURL = url
+				return
+			}
+		} else {
+			guard let comps = URLComponents(url: url, resolvingAgainstBaseURL: url.baseURL != nil) else {
+				rawURL = url
+				return
+			}
+			if comps.host == "localhost" || url.host == "127.0.0.1" {
+				rawURL = url
+				return
+			}
 		}
 
 		guard url.scheme == "https" else {
