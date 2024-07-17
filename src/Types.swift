@@ -164,20 +164,9 @@ public struct BridgeURL: Sendable, Equatable {
 	let rawURL: URL
 
 	public init(_ url: URL) throws {
-		if #available(iOS 16.0, *) {
-			if url.host() == "localhost" || url.host() == "127.0.0.1" {
-				rawURL = url
-				return
-			}
-		} else {
-			guard let comps = URLComponents(url: url, resolvingAgainstBaseURL: url.baseURL != nil) else {
-				rawURL = url
-				return
-			}
-			if comps.host == "localhost" || url.host == "127.0.0.1" {
-				rawURL = url
-				return
-			}
+		if url.host == "localhost" || url.host == "127.0.0.1" {
+			rawURL = url
+			return
 		}
 
 		guard url.scheme == "https" else {

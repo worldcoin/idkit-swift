@@ -11,7 +11,6 @@ let package = Package(
 	dependencies: [
 		.package(url: "https://github.com/attaswift/BigInt.git", from: "5.3.0"),
 		.package(url: "https://github.com/argentlabs/web3.swift", from: "1.5.0"),
-		// .package(url: "https://github.com/apple/swift-testing.git", branch: "main"),
 		.package(url: "https://github.com/apple/swift-crypto.git", "1.0.0"..<"4.0.0"),
 	],
 	targets: [
@@ -24,12 +23,6 @@ let package = Package(
 			],
 			path: "./src",
 			swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
-		)
-		// ,
-		// .testTarget(
-		// 	name: "IDKitTests",
-		// 	dependencies: ["IDKit", .product(name: "Testing", package: "swift-testing")],
-		// 	path: "./tests"
-		// ),
+		),
 	]
 )

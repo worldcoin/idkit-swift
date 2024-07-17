@@ -47,14 +47,7 @@ public struct Session: Sendable {
 			queryParams.append(URLQueryItem(name: "b", value: bridgeURL.rawURL.absoluteString))
 		}
 
-		if #available(iOS 16.0, *) {
-			return URL(string: "https://worldcoin.org/verify")!.appending(queryItems: queryParams)
-		} else {
-			let url = URL(string: "https://worldcoin.org/verify")!
-			guard var comps = URLComponents(url: url, resolvingAgainstBaseURL: nil != url.baseURL) else { return nil }
-			comps.queryItems = queryParams
-			return comps.url
-		}
+		return URL(string: "https://worldcoin.org/verify")!.appending(queryItems: queryParams)
 	}
 
 	/// Create a new session with the Wallet Bridge.
@@ -96,14 +89,7 @@ public struct Session: Sendable {
 
 		let task = Task.detached {
 			var currentStatus: Status = .waitingForConnection
-
-			let request: URLRequest
-
-			if #available(iOS 16.0, *) {
-				request = URLRequest(url: self.bridgeURL.rawURL.appending(path: "/response/\(requestID)"))
-			} else {
-				request = URLRequest(url: self.bridgeURL.rawURL.appendingPathComponent("response/\(requestID)"))
-			}
+			let request = URLRequest(url: self.bridgeURL.rawURL.appendingPathComponent("response/\(requestID)"))
 
 			continuation.yield(currentStatus)
 
