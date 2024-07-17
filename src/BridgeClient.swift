@@ -23,7 +23,7 @@ enum BridgeResponse: Decodable {
 	}
 }
 
-struct BridgeClient {
+enum BridgeClient {
 	struct CreateRequestResponse: Codable {
 		let request_id: UUID
 	}
@@ -34,7 +34,7 @@ struct BridgeClient {
 	}
 
 	static func create_request(_ data: Payload, bridgeURL: BridgeURL) async throws -> CreateRequestResponse {
-		var request = URLRequest(url: bridgeURL.rawURL.appending(path: "/request"))
+		var request = URLRequest(url: bridgeURL.rawURL.appendingPathComponent("request"))
 
 		request.httpMethod = "POST"
 		request.httpBody = try JSONEncoder().encode(data)

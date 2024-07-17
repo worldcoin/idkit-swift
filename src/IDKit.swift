@@ -89,7 +89,7 @@ public struct Session: Sendable {
 
 		let task = Task.detached {
 			var currentStatus: Status = .waitingForConnection
-			let request = URLRequest(url: self.bridgeURL.rawURL.appending(path: "/response/\(requestID)"))
+			let request = URLRequest(url: self.bridgeURL.rawURL.appendingPathComponent("response/\(requestID)"))
 
 			continuation.yield(currentStatus)
 
