@@ -36,7 +36,7 @@ public struct Session: Sendable {
 	let bridgeURL: BridgeURL
 
 	/// The URL that the user should be directed to in order to connect their World App to the client.
-	public var connect_url: URL? {
+	public var connect_url: URL {
 		var queryParams = [
 			URLQueryItem(name: "t", value: "wld"),
 			URLQueryItem(name: "i", value: requestID.uuidString),

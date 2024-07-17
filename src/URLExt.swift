@@ -2,7 +2,7 @@ import Foundation
 
 extension URL {
 	var host: String? {
-		guard let comps = URLComponents(url: url, resolvingAgainstBaseURL: url.baseURL != nil) else {
+		guard let comps = URLComponents(url: self, resolvingAgainstBaseURL: baseURL != nil) else {
 			return nil
 		}
 
