@@ -121,7 +121,7 @@ public struct AppID {
 		rawId.starts(with: "app_staging_")
 	}
 
-	public init(_ app_id: String) throws(AppIDError) {
+	public init(_ app_id: String) throws {
 		guard app_id.starts(with: "app_") else {
 			throw AppIDError.invalidAppID
 		}
@@ -163,7 +163,7 @@ public struct BridgeURL: Sendable, Equatable {
 
 	let rawURL: URL
 
-	public init(_ url: URL) throws(BridgeURLError) {
+	public init(_ url: URL) throws {
 		if url.host() == "localhost" || url.host() == "127.0.0.1" {
 			rawURL = url
 			return
