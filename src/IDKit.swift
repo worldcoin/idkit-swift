@@ -68,11 +68,11 @@ public struct Session: Sendable {
 		iv = AES.GCM.Nonce()
 
 		let response = try await BridgeClient.create_request(CreateRequestPayload(
-			app_id: appID.rawId,
+			appID: appID,
 			action: action,
 			signal: encodeSignal(signal),
-			action_description: actionDescription,
-			verification_level: verificationLevel
+			actionDescription: actionDescription,
+			verificationLevel: verificationLevel
 		).encrypt(with: key, nonce: iv), bridgeURL: bridgeURL)
 
 		requestID = response.request_id
