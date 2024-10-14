@@ -1,6 +1,6 @@
 import web3
 import BigInt
-@preconcurrency import Crypto
+import IDKitCore
 import Foundation
 
 /// A World ID session with the Wallet Bridge.

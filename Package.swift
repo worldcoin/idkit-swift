@@ -7,6 +7,7 @@ let package = Package(
 	platforms: [.macOS(.v13), .iOS(.v15), .watchOS(.v8), .tvOS(.v15)],
 	products: [
 		.library(name: "IDKit", targets: ["IDKit"]),
+		.library(name: "IDKitCore", targets: ["IDKitCore"]),
 	],
 	dependencies: [
 		.package(url: "https://github.com/attaswift/BigInt.git", from: "5.3.0"),
@@ -17,11 +18,19 @@ let package = Package(
 		.target(
 			name: "IDKit",
 			dependencies: [
+				"IDKitCore",
 				.product(name: "BigInt", package: "BigInt"),
-				.product(name: "Crypto", package: "swift-crypto"),
 				.product(name: "web3.swift", package: "web3.swift"),
 			],
-			path: "./src",
+			path: "./Sources/IDKit",
+			swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
+		),
+		.target(
+			name: "IDKitCore",
+			dependencies: [
+				.product(name: "Crypto", package: "swift-crypto"),
+			],
+			path: "./Sources/IDKitCore",
 			swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
 		),
 	]

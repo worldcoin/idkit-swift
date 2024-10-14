@@ -1,25 +1,6 @@
 import Crypto
 import Foundation
 
-public struct Proof: Codable, Sendable {
-	/// The strongest credential with which a user has been verified.
-	public enum CredentialType: String, Codable, Sendable {
-		case orb
-		case device
-	}
-
-	public let proof: String
-	public let merkle_root: String
-	public let nullifier_hash: String
-	public let credential_type: CredentialType
-}
-
-/// The minimum verification level accepted.
-public enum VerificationLevel: String, Codable {
-	case orb
-	case device
-}
-
 /// The error returned by the World App.
 public enum AppError: String, Error, Codable, Sendable {
 	/// Failed to connect to the World App. Please create a new session and try again.
@@ -45,7 +26,7 @@ public enum AppError: String, Error, Codable, Sendable {
 	/// Something unexpected went wrong. Please try again.
 	case genericError = "generic_error"
 
-	var localizedDescription: String {
+	public var localizedDescription: String {
 		switch self {
 			case .connectionFailed:
 				return "Failed to connect to the World App. Please create a new session and try again."
@@ -91,41 +72,26 @@ public struct Payload<Response: Decodable>: Codable {
 	}
 }
 
-struct CreateRequestPayload: Codable {
-	let app_id: String
-	let action: String
-	let signal: String
-	let action_description: Optional<String>
-	let verification_level: VerificationLevel
-	let credential_types: [Proof.CredentialType]
+enum BridgeResponse<Response: Decodable>: Decodable {
+	case success(Response)
+	case error(AppError)
 
-	init(appID: AppID, action: String, signal: String, actionDescription: String?, verificationLevel: VerificationLevel) {
-		self.action = action
-		self.signal = signal
-		app_id = appID.rawId
-		action_description = actionDescription
-		verification_level = verificationLevel
-		credential_types = verificationLevel == .orb ? [.orb] : [.orb, .device]
-	}
-}
-
-public struct AppID {
-	public enum AppIDError: Error {
-		case invalidAppID
+	enum CodingKeys: String, CodingKey {
+		case proof
+		case errorCode = "error_code"
 	}
 
-	public let rawId: String
+	init(from decoder: Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
 
-	public var is_staging: Bool {
-		rawId.starts(with: "app_staging_")
-	}
-
-	public init(_ app_id: String) throws {
-		guard app_id.starts(with: "app_") else {
-			throw AppIDError.invalidAppID
+		if let errorCode = try? container.decode(AppError.self, forKey: .errorCode) {
+			self = .error(errorCode)
+		} else if container.contains(.proof) {
+			let proof = try Response(from: decoder)
+			self = .success(proof)
+		} else {
+			throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "BridgeResponse doesn't match any expected type"))
 		}
-
-		rawId = app_id
 	}
 }
 
@@ -193,28 +159,5 @@ public struct BridgeURL: Sendable, Equatable {
 
 	public static func == (lhs: BridgeURL, rhs: BridgeURL) -> Bool {
 		lhs.rawURL == rhs.rawURL
-	}
-}
-
-enum BridgeResponse<Response: Decodable>: Decodable {
-	case success(Response)
-	case error(AppError)
-
-	enum CodingKeys: String, CodingKey {
-		case proof
-		case errorCode = "error_code"
-	}
-
-	init(from decoder: Decoder) throws {
-		let container = try decoder.container(keyedBy: CodingKeys.self)
-
-		if let errorCode = try? container.decode(AppError.self, forKey: .errorCode) {
-			self = .error(errorCode)
-		} else if container.contains(.proof) {
-			let proof = try Response(from: decoder)
-			self = .success(proof)
-		} else {
-			throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "BridgeResponse doesn't match any expected type"))
-		}
 	}
 }
