@@ -73,18 +73,18 @@ public enum AppError: String, Error, Codable, Sendable {
 	}
 }
 
-struct Payload: Codable {
+public struct Payload<Response: Decodable>: Codable {
 	let iv: String
 	let payload: String
 
-	func decrypt(with key: SymmetricKey) throws -> BridgeResponse {
+	func decrypt(with key: SymmetricKey) throws -> Response {
 		let payload = Data(base64Encoded: self.payload)!
 		let nonce = try AES.GCM.Nonce(data: Data(base64Encoded: iv)!)
 
 		let cipher = payload.prefix(payload.count - 16)
 		let authTag = payload.suffix(16)
 
-		return try JSONDecoder().decode(BridgeResponse.self, from: AES.GCM.open(
+		return try JSONDecoder().decode(Response.self, from: AES.GCM.open(
 			AES.GCM.SealedBox(nonce: nonce, ciphertext: cipher, tag: authTag),
 			using: key
 		))
@@ -107,17 +107,6 @@ struct CreateRequestPayload: Codable {
 		verification_level = verificationLevel
 		credential_types = verificationLevel == .orb ? [.orb] : [.orb, .device]
 	}
-
-	func encrypt(with key: SymmetricKey, nonce: AES.GCM.Nonce) throws -> Payload {
-		let sealedBox = try AES.GCM.seal(JSONEncoder().encode(self), using: key, nonce: nonce)
-		var payload = sealedBox.ciphertext
-		payload.append(sealedBox.tag)
-
-		return Payload(
-			iv: nonce.withUnsafeBytes { Data($0).base64EncodedString() },
-			payload: payload.base64EncodedString()
-		)
-	}
 }
 
 public struct AppID {
@@ -125,7 +114,7 @@ public struct AppID {
 		case invalidAppID
 	}
 
-	let rawId: String
+	public let rawId: String
 
 	public var is_staging: Bool {
 		rawId.starts(with: "app_staging_")
@@ -153,7 +142,7 @@ public struct BridgeURL: Sendable, Equatable {
 		/// Bridge URL must not contain a fragment.
 		case containsFragment
 
-		var localizedDescription: String {
+		public var localizedDescription: String {
 			switch self {
 				case .notHttps:
 					return "Bridge URL must use HTTPS."
@@ -171,7 +160,7 @@ public struct BridgeURL: Sendable, Equatable {
 
 	public static let `default` = try! BridgeURL(URL(string: "https://bridge.worldcoin.org")!)
 
-	let rawURL: URL
+	public let rawURL: URL
 
 	public init(_ url: URL) throws {
 		if url.host == "localhost" || url.host == "127.0.0.1" {
@@ -204,5 +193,28 @@ public struct BridgeURL: Sendable, Equatable {
 
 	public static func == (lhs: BridgeURL, rhs: BridgeURL) -> Bool {
 		lhs.rawURL == rhs.rawURL
+	}
+}
+
+enum BridgeResponse<Response: Decodable>: Decodable {
+	case success(Response)
+	case error(AppError)
+
+	enum CodingKeys: String, CodingKey {
+		case proof
+		case errorCode = "error_code"
+	}
+
+	init(from decoder: Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+
+		if let errorCode = try? container.decode(AppError.self, forKey: .errorCode) {
+			self = .error(errorCode)
+		} else if container.contains(.proof) {
+			let proof = try Response(from: decoder)
+			self = .success(proof)
+		} else {
+			throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "BridgeResponse doesn't match any expected type"))
+		}
 	}
 }
