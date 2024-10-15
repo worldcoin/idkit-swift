@@ -72,7 +72,7 @@ public struct Payload<Response: Decodable>: Codable {
 	}
 }
 
-enum BridgeResponse<Response: Decodable>: Decodable {
+public enum BridgeResponse<Response: Decodable>: Decodable {
 	case success(Response)
 	case error(AppError)
 
@@ -81,7 +81,7 @@ enum BridgeResponse<Response: Decodable>: Decodable {
 		case errorCode = "error_code"
 	}
 
-	init(from decoder: Decoder) throws {
+	public init(from decoder: Decoder) throws {
 		let container = try decoder.container(keyedBy: CodingKeys.self)
 
 		if let errorCode = try? container.decode(AppError.self, forKey: .errorCode) {
@@ -91,6 +91,19 @@ enum BridgeResponse<Response: Decodable>: Decodable {
 			self = .success(proof)
 		} else {
 			throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "BridgeResponse doesn't match any expected type"))
+		}
+	}
+}
+
+extension BridgeResponse: Encodable where Response: Encodable {
+	public func encode(to encoder: Encoder) throws {
+		var container = encoder.container(keyedBy: CodingKeys.self)
+
+		switch self {
+			case let .success(response):
+				try container.encode(response, forKey: .proof)
+			case let .error(error):
+				try container.encode(error, forKey: .errorCode)
 		}
 	}
 }
