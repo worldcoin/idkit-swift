@@ -58,7 +58,7 @@ public struct Payload<Response: Decodable>: Codable {
 	let iv: String
 	let payload: String
 
-	func decrypt(with key: SymmetricKey) throws -> Response {
+	public func decrypt(with key: SymmetricKey) throws -> Response {
 		let payload = Data(base64Encoded: self.payload)!
 		let nonce = try AES.GCM.Nonce(data: Data(base64Encoded: iv)!)
 
