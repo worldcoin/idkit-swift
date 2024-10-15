@@ -86,7 +86,8 @@ public enum BridgeResponse<Response: Decodable>: Decodable {
 
 		if let errorCode = try? container.decode(AppError.self, forKey: .errorCode) {
 			self = .error(errorCode)
-		} else if let proof = try? container.decode(Response.self, forKey: .proof) {
+		} else if container.contains(.proof) {
+			let proof = try Response(from: decoder)
 			self = .success(proof)
 		} else {
 			throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "BridgeResponse doesn't match any expected type"))
@@ -96,12 +97,11 @@ public enum BridgeResponse<Response: Decodable>: Decodable {
 
 extension BridgeResponse: Encodable where Response: Encodable {
 	public func encode(to encoder: Encoder) throws {
-		var container = encoder.container(keyedBy: CodingKeys.self)
-
 		switch self {
 			case let .success(response):
-				try container.encode(response, forKey: .proof)
+				try response.encode(to: encoder)
 			case let .error(error):
+				var container = encoder.container(keyedBy: CodingKeys.self)
 				try container.encode(error, forKey: .errorCode)
 		}
 	}
