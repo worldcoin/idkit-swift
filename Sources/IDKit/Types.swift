@@ -4,9 +4,9 @@ public struct Proof: Codable, Sendable {
 	/// The strongest credential with which a user has been verified.
 	public enum CredentialType: String, Codable, Sendable {
 		case orb
-        case secure_document
-        case document
 		case device
+        case document
+        case secure_document
 	}
 
 	public let proof: String
@@ -18,22 +18,18 @@ public struct Proof: Codable, Sendable {
 /// The minimum verification level accepted.
 public enum VerificationLevel: String, Codable {
 	case orb
-    case secure_document
-    case document
 	case device
+    case document
+    case secure_document
 }
 
 extension VerificationLevel {
     var credentialTypes: [Proof.CredentialType] {
         switch self {
-        case .orb:
-            return [.orb]
-        case .secure_document:
-            return [.orb, .secure_document]
-        case .document:
-            return [.document, .secure_document, .orb]
-        case .device:
-            return [.orb, .device]
+			case .orb: [.orb]
+			case .device: [.orb, .device]
+			case .secure_document: [.orb, .secure_document]
+			case .document: [.document, .secure_document, .orb]
         }
     }
 }
