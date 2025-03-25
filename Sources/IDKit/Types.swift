@@ -5,6 +5,8 @@ public struct Proof: Codable, Sendable {
 	public enum CredentialType: String, Codable, Sendable {
 		case orb
 		case device
+        case document
+        case secure_document
 	}
 
 	public let proof: String
@@ -17,6 +19,19 @@ public struct Proof: Codable, Sendable {
 public enum VerificationLevel: String, Codable {
 	case orb
 	case device
+    case document
+    case secure_document
+}
+
+extension VerificationLevel {
+    var credentialTypes: [Proof.CredentialType] {
+        switch self {
+			case .orb: [.orb]
+			case .device: [.orb, .device]
+			case .secure_document: [.orb, .secure_document]
+			case .document: [.document, .secure_document, .orb]
+        }
+    }
 }
 
 struct CreateRequestPayload: Codable {
@@ -33,7 +48,7 @@ struct CreateRequestPayload: Codable {
 		app_id = appID.rawId
 		action_description = actionDescription
 		verification_level = verificationLevel
-		credential_types = verificationLevel == .orb ? [.orb] : [.orb, .device]
+        credential_types = verificationLevel.credentialTypes
 	}
 }
 
