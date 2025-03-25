@@ -4,6 +4,8 @@ public struct Proof: Codable, Sendable {
 	/// The strongest credential with which a user has been verified.
 	public enum CredentialType: String, Codable, Sendable {
 		case orb
+        case secure_document
+        case document
 		case device
 	}
 
@@ -16,7 +18,24 @@ public struct Proof: Codable, Sendable {
 /// The minimum verification level accepted.
 public enum VerificationLevel: String, Codable {
 	case orb
+    case secure_document
+    case document
 	case device
+}
+
+extension VerificationLevel {
+    var credentialTypes: [Proof.CredentialType] {
+        switch self {
+        case .orb:
+            return [.orb]
+        case .secure_document:
+            return [.orb, .secure_document]
+        case .document:
+            return [.document, .secure_document, .orb]
+        case .device:
+            return [.orb, .device]
+        }
+    }
 }
 
 struct CreateRequestPayload: Codable {
@@ -33,7 +52,7 @@ struct CreateRequestPayload: Codable {
 		app_id = appID.rawId
 		action_description = actionDescription
 		verification_level = verificationLevel
-		credential_types = verificationLevel == .orb ? [.orb] : [.orb, .device]
+        credential_types = verificationLevel.credentialTypes
 	}
 }
 
