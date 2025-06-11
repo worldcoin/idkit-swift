@@ -37,14 +37,12 @@ extension VerificationLevel {
 struct CreateRequestPayload: Codable {
 	let app_id: String
 	let action: String
-	let signal: String
 	let action_description: Optional<String>
 	let verification_level: VerificationLevel
 	let credential_types: [Proof.CredentialType]
 
-	init(appID: AppID, action: String, signal: String, actionDescription: String?, verificationLevel: VerificationLevel) {
+	init(appID: AppID, action: String, actionDescription: String?, verificationLevel: VerificationLevel) {
 		self.action = action
-		self.signal = signal
 		app_id = appID.rawId
 		action_description = actionDescription
 		verification_level = verificationLevel
