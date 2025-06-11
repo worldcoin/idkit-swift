@@ -1,4 +1,3 @@
-import web3
 import BigInt
 import IDKitCore
 import Foundation
@@ -19,18 +18,16 @@ public struct Session: Sendable {
 	/// # Errors
 	///
 	/// Throws an error if the request to the bridge fails, or if the response from the bridge is malformed.
-	public init<Signal: ABIType>(
+	public init(
 		_ appID: AppID,
 		action: String,
 		verificationLevel: VerificationLevel = .orb,
 		bridgeURL: BridgeURL = .default,
-		signal: Signal = "",
 		actionDescription: String? = nil
 	) async throws {
-		let payload = try CreateRequestPayload(
+		let payload = CreateRequestPayload(
 			appID: appID,
 			action: action,
-			signal: encodeSignal(signal),
 			actionDescription: actionDescription,
 			verificationLevel: verificationLevel
 		)
@@ -47,10 +44,4 @@ public struct Session: Sendable {
 	public func status() -> AsyncThrowingStream<Status, Error> {
 		return client.status()
 	}
-}
-
-func encodeSignal(_ signal: any ABIType) throws -> String {
-	let bytes = try Data(ABIEncoder.encode(signal, packed: true).bytes).web3.keccak256
-
-	return "0x" + String(BigUInt(bytes) >> 8, radix: 16)
 }

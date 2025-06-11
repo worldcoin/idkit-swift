@@ -67,7 +67,7 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 		key = SymmetricKey(size: .bits256)
 		iv = AES.GCM.Nonce()
 
-		let response = try await Self.create_request(payload.encrypt(with: key, nonce: iv), bridgeURL: bridgeURL)
+		let response = try await Self.createRequest(payload.encrypt(with: key, nonce: iv), bridgeURL: bridgeURL)
 
 		requestID = response.request_id
 	}
@@ -83,13 +83,12 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 
 		let task = Task.detached {
 			var currentStatus: Status = .waitingForConnection
-			let request = URLRequest(url: self.bridgeURL.rawURL.appendingPathComponent("response/\(requestID)"))
 
 			continuation.yield(currentStatus)
 
 			do {
 				while true {
-					let response = try await get_status(for: requestID, bridgeURL: bridgeURL)
+					let response = try await status(for: requestID, bridgeURL: bridgeURL)
 
 					if response.status == "completed" {
 						guard let payload = response.response else { throw AppError.unexpectedResponse }
@@ -128,7 +127,7 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 		return stream
 	}
 
-	private static func create_request<Request: Decodable>(_ data: Payload<Request>, bridgeURL: BridgeURL) async throws -> CreateRequestResponse {
+	private static func createRequest<Request: Decodable>(_ data: Payload<Request>, bridgeURL: BridgeURL) async throws -> CreateRequestResponse {
 		var request = URLRequest(url: bridgeURL.rawURL.appendingPathComponent("request"))
 
 		request.httpMethod = "POST"
@@ -142,7 +141,7 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 		return try JSONDecoder().decode(CreateRequestResponse.self, from: data)
 	}
 
-	private func get_status(for requestID: UUID, bridgeURL: BridgeURL) async throws -> BridgeQueryResponse {
+	private func status(for requestID: UUID, bridgeURL: BridgeURL) async throws -> BridgeQueryResponse {
 		let request = URLRequest(url: bridgeURL.rawURL.appendingPathComponent("response/\(requestID)"))
 
 		let (data, res) = try await URLSession.shared.data(for: request)
