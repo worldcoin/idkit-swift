@@ -1,7 +1,9 @@
-import web3
+import Web3
+import Web3ContractABI
 import BigInt
 import IDKitCore
 import Foundation
+import CryptoSwift
 
 /// A World ID session with the Wallet Bridge.
 public struct Session: Sendable {
@@ -19,7 +21,7 @@ public struct Session: Sendable {
 	/// # Errors
 	///
 	/// Throws an error if the request to the bridge fails, or if the response from the bridge is malformed.
-	public init<Signal: ABIType>(
+	public init<Signal>(
 		_ appID: AppID,
 		action: String,
 		verificationLevel: VerificationLevel = .orb,
@@ -49,8 +51,21 @@ public struct Session: Sendable {
 	}
 }
 
-func encodeSignal(_ signal: any ABIType) throws -> String {
-	let bytes = try Data(ABIEncoder.encode(signal, packed: true).bytes).web3.keccak256
-
-	return "0x" + String(BigUInt(bytes) >> 8, radix: 16)
+func encodeSignal<T>(_ signal: T) throws -> String {
+	// Encode signal data
+	let signalData: Data
+	if let stringSignal = signal as? String {
+		signalData = stringSignal.data(using: .utf8) ?? Data()
+	} else {
+		// For other types, convert to string first
+		signalData = String(describing: signal).data(using: .utf8) ?? Data()
+	}
+	
+	// Convert Data to bytes array and use SHA3 with keccak256 variant
+	let bytes = [UInt8](signalData)
+	let hash = SHA3(variant: .keccak256).calculate(for: bytes)
+	
+	// Convert to hex string
+	let hashData = Data(hash)
+	return "0x" + String(BigUInt(hashData) >> 8, radix: 16)
 }
