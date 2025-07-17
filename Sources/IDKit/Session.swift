@@ -60,5 +60,8 @@ func encodeSignal(_ signal: String) throws -> String {
 	
 	// Convert to hex string
 	let hashData = Data(hash)
-	return "0x" + String(BigUInt(hashData) >> 8, radix: 16)
+	let hexString = String(BigUInt(hashData) >> 8, radix: 16)
+	// Pad with leading zeros to ensure 64 characters
+	let paddedHex = String(repeating: "0", count: max(0, 64 - hexString.count)) + hexString
+	return "0x" + paddedHex
 }
