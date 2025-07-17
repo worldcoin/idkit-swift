@@ -21,18 +21,18 @@ public struct Session: Sendable {
 	/// # Errors
 	///
 	/// Throws an error if the request to the bridge fails, or if the response from the bridge is malformed.
-	public init<Signal>(
+	public init(
 		_ appID: AppID,
 		action: String,
 		verificationLevel: VerificationLevel = .orb,
 		bridgeURL: BridgeURL = .default,
-		signal: Signal = "",
+		signal: (any ABIEncodable)? = nil,
 		actionDescription: String? = nil
 	) async throws {
-		let payload = try CreateRequestPayload(
+		let payload = CreateRequestPayload(
 			appID: appID,
 			action: action,
-			signal: encodeSignal(signal),
+			signal: try encodeSignal(signal ?? ""),
 			actionDescription: actionDescription,
 			verificationLevel: verificationLevel
 		)
