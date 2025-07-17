@@ -1,5 +1,4 @@
 import Web3
-import Web3ContractABI
 import BigInt
 import IDKitCore
 import Foundation
@@ -26,13 +25,13 @@ public struct Session: Sendable {
 		action: String,
 		verificationLevel: VerificationLevel = .orb,
 		bridgeURL: BridgeURL = .default,
-		signal: (any ABIEncodable)? = nil,
+		signal: String = "",
 		actionDescription: String? = nil
 	) async throws {
 		let payload = CreateRequestPayload(
 			appID: appID,
 			action: action,
-			signal: try encodeSignal(signal ?? ""),
+			signal: try encodeSignal(signal),
 			actionDescription: actionDescription,
 			verificationLevel: verificationLevel
 		)
@@ -51,15 +50,9 @@ public struct Session: Sendable {
 	}
 }
 
-func encodeSignal<T>(_ signal: T) throws -> String {
+func encodeSignal(_ signal: String) throws -> String {
 	// Encode signal data
-	let signalData: Data
-	if let stringSignal = signal as? String {
-		signalData = stringSignal.data(using: .utf8) ?? Data()
-	} else {
-		// For other types, convert to string first
-		signalData = String(describing: signal).data(using: .utf8) ?? Data()
-	}
+	let signalData = signal.data(using: .utf8) ?? Data()
 	
 	// Convert Data to bytes array and use SHA3 with keccak256 variant
 	let bytes = [UInt8](signalData)

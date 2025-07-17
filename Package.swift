@@ -21,7 +21,6 @@ let package = Package(
 				"IDKitCore",
 				.product(name: "BigInt", package: "BigInt"),
 				.product(name: "Web3", package: "Web3.swift"),
-				.product(name: "Web3ContractABI", package: "Web3.swift"),
 			],
 			path: "./Sources/IDKit",
 			swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
