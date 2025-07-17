@@ -83,7 +83,6 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 
 		let task = Task.detached {
 			var currentStatus: Status = .waitingForConnection
-			let request = URLRequest(url: self.bridgeURL.rawURL.appendingPathComponent("response/\(requestID)"))
 
 			continuation.yield(currentStatus)
 
