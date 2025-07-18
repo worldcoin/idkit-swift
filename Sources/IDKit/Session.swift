@@ -1,7 +1,8 @@
-import web3
+import Web3
 import BigInt
 import IDKitCore
 import Foundation
+import CryptoSwift
 
 /// A World ID session with the Wallet Bridge.
 public struct Session: Sendable {
@@ -19,18 +20,18 @@ public struct Session: Sendable {
 	/// # Errors
 	///
 	/// Throws an error if the request to the bridge fails, or if the response from the bridge is malformed.
-	public init<Signal: ABIType>(
+	public init(
 		_ appID: AppID,
 		action: String,
 		verificationLevel: VerificationLevel = .orb,
 		bridgeURL: BridgeURL = .default,
-		signal: Signal = "",
+		signal: String = "",
 		actionDescription: String? = nil
 	) async throws {
-		let payload = try CreateRequestPayload(
+		let payload = CreateRequestPayload(
 			appID: appID,
 			action: action,
-			signal: encodeSignal(signal),
+			signal: try encodeSignal(signal),
 			actionDescription: actionDescription,
 			verificationLevel: verificationLevel
 		)
@@ -49,8 +50,18 @@ public struct Session: Sendable {
 	}
 }
 
-func encodeSignal(_ signal: any ABIType) throws -> String {
-	let bytes = try Data(ABIEncoder.encode(signal, packed: true).bytes).web3.keccak256
-
-	return "0x" + String(BigUInt(bytes) >> 8, radix: 16)
+func encodeSignal(_ signal: String) throws -> String {
+	// Encode signal data
+	let signalData = signal.data(using: .utf8) ?? Data()
+	
+	// Convert Data to bytes array and use SHA3 with keccak256 variant
+	let bytes = [UInt8](signalData)
+	let hash = SHA3(variant: .keccak256).calculate(for: bytes)
+	
+	// Convert to hex string
+	let hashData = Data(hash)
+	let hexString = String(BigUInt(hashData) >> 8, radix: 16)
+	// Pad with leading zeros to ensure 64 characters
+	let paddedHex = String(repeating: "0", count: max(0, 64 - hexString.count)) + hexString
+	return "0x" + paddedHex
 }
