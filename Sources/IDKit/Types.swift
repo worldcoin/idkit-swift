@@ -1,5 +1,13 @@
 import Foundation
 
+/// The categories of credentials that are associated to a user's World ID.
+public enum CredentialCategory: Codable, Equatable {
+    /// The set of NFC credentials with no authentication.
+    case document
+    /// The set of NFC credentials with active or passive authentication.
+    case secure_document
+}
+
 public struct Proof: Codable, Sendable {
 	/// The strongest credential with which a user has been verified.
 	public enum CredentialType: String, Codable, Sendable {
@@ -75,6 +83,23 @@ struct CreateRequestPayload: Codable {
         credential_types = verificationLevel.credentialTypes
 	}
 }
+
+struct CredentialCategoryRequestPayload: Codable {
+    let app_id: String
+    let action: String
+    let signal: String
+    let action_description: Optional<String>
+    let credential_categories: Set<CredentialCategory>
+
+    init(appID: AppID, action: String, signal: String, actionDescription: String?, credentialCategories: Set<CredentialCategory>) {
+        self.action = action
+        self.signal = signal
+        app_id = appID.rawId
+        action_description = actionDescription
+        credential_categories = credentialCategories
+    }
+}
+
 
 public struct AppID {
 	public enum AppIDError: Error {
