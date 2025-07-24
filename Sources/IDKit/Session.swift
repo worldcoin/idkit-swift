@@ -39,28 +39,31 @@ public struct Session: Sendable {
 		client = try await BridgeClient(sending: payload, to: bridgeURL)
 	}
 
-    /// Establishes a session with Wallet Bridge for generating a proof that a Holder posesses at least one of a set of pre-defined credentials.
+    /// Establishes a session with Wallet Bridge for generating a proof that a Holder posesses at least one credential in any set of possible credential classes.
     /// - Parameters:
-    ///   - appID: The app ID of the relying party.
+    ///   - appID: The app ID of the Relying Party.
     ///   - action: The identifier of the action related to the attestation.
-    ///   - credentialTypes: The set of credentials for which a proof should be generated. The strictest credential will be preferred.
+    ///   - credentialCategories: The set of credentials for which a proof should be generated. The strictest credential will be preferred.
     ///   - bridgeURL: The URL of the Wallet Bridge instance to establish a session against.
     ///   - signal: The ZK signal associated with this session.
     ///   - actionDescription: A description of the action.
+    /// # Errors
+    /// * If the request to the bridge fails.
+    /// * If the response from the bridge is malformed.
     public init(
         _ appID: AppID,
         action: String,
-        credentialTypes: Set<Proof.CredentialType>,
+        credentialCategories: Set<CredentialCategory>,
         bridgeURL: BridgeURL = .default,
         signal: String = "",
         actionDescription: String? = nil
     ) async throws {
-        let payload = CredentialTypeRequestPayload(
+        let payload = CredentialCategoryRequestPayload(
             appID: appID,
             action: action,
             signal: try encodeSignal(signal),
             actionDescription: actionDescription,
-            credentialTypes: credentialTypes
+            credentialCategories: credentialCategories
         )
 
         client = try await BridgeClient(sending: payload, to: bridgeURL)
