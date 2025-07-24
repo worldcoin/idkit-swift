@@ -39,6 +39,33 @@ public struct Session: Sendable {
 		client = try await BridgeClient(sending: payload, to: bridgeURL)
 	}
 
+    /// Establishes a session with Wallet Bridge for generating a proof that a Holder posesses at least one of a set of pre-defined credentials.
+    /// - Parameters:
+    ///   - appID: The app ID of the relying party.
+    ///   - action: The identifier of the action related to the attestation.
+    ///   - credentialTypes: The set of credentials for which a proof should be generated. The strictest credential will be preferred.
+    ///   - bridgeURL: The URL of the Wallet Bridge instance to establish a session against.
+    ///   - signal: The ZK signal associated with this session.
+    ///   - actionDescription: A description of the action.
+    public init(
+        _ appID: AppID,
+        action: String,
+        credentialTypes: Set<Proof.CredentialType>,
+        bridgeURL: BridgeURL = .default,
+        signal: String = "",
+        actionDescription: String? = nil
+    ) async throws {
+        let payload = CredentialTypeRequestPayload(
+            appID: appID,
+            action: action,
+            signal: try encodeSignal(signal),
+            actionDescription: actionDescription,
+            credentialTypes: credentialTypes
+        )
+
+        client = try await BridgeClient(sending: payload, to: bridgeURL)
+    }
+
 	/// Retrieve the status of the verification request.
 	/// Returns a stream of status updates, which will be updated as the request progresses.
 	///

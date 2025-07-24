@@ -76,6 +76,23 @@ struct CreateRequestPayload: Codable {
 	}
 }
 
+struct CredentialTypeRequestPayload: Codable {
+    let app_id: String
+    let action: String
+    let signal: String
+    let action_description: Optional<String>
+    let credential_types: Set<Proof.CredentialType>
+
+    init(appID: AppID, action: String, signal: String, actionDescription: String?, credentialTypes: Set<Proof.CredentialType>) {
+        self.action = action
+        self.signal = signal
+        app_id = appID.rawId
+        action_description = actionDescription
+        credential_types = credentialTypes
+    }
+}
+
+
 public struct AppID {
 	public enum AppIDError: Error {
 		case invalidAppID
