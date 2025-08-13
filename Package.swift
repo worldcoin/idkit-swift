@@ -11,7 +11,7 @@ let package = Package(
 	],
 	dependencies: [
 		.package(url: "https://github.com/attaswift/BigInt.git", from: "5.3.0"),
-		.package(url: "https://github.com/chainnodesorg/Web3.swift", from: "0.6.0"),
+        .package(url: "https://github.com/krzyzanowskim/CryptoSwift.git", from: "1.9.0"),
 		.package(url: "https://github.com/apple/swift-crypto.git", "1.0.0"..<"4.0.0"),
 	],
 	targets: [
@@ -20,7 +20,7 @@ let package = Package(
 			dependencies: [
 				"IDKitCore",
 				.product(name: "BigInt", package: "BigInt"),
-				.product(name: "Web3", package: "Web3.swift"),
+				.product(name: "CryptoSwift", package: "CryptoSwift"),
 			],
 			path: "./Sources/IDKit",
 			swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]

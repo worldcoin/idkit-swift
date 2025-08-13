@@ -1,4 +1,3 @@
-import Web3
 import BigInt
 import IDKitCore
 import Foundation
