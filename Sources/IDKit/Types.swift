@@ -1,7 +1,7 @@
 import Foundation
 
 /// The categories of credentials that are associated to a user's World ID.
-public enum CredentialCategory: Codable, Equatable {
+public enum CredentialCategory: String, Codable, Equatable {
     /// The set of NFC credentials with no authentication.
     case document
     /// The set of NFC credentials with active or passive authentication.
