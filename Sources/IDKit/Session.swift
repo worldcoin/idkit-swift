@@ -29,7 +29,7 @@ public func initiateSession(
     bridgeURL: BridgeURL = .default,
     signal: String = "",
     actionDescription: String? = nil
-) async throws -> (connectURL: URL, stream: AsyncThrowingStream<Status<Proof>, Error>) {
+) async throws -> (connectURL: URL, stream: AsyncThrowingStream<Status<CredentialCategoryProofResponse>, Error>) {
     let payload = CredentialCategoryRequestPayload(
         appID: appID,
         action: action,

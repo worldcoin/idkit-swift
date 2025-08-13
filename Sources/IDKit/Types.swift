@@ -39,6 +39,18 @@ public struct Proof: Codable, Sendable {
 	}
 }
 
+public struct CredentialCategoryProofResponse: Codable, Sendable {
+    public struct ProofResponse: Codable, Sendable {
+        public let proof: String
+        public let merkle_root: String
+        public let nullifier_hash: String
+    }
+
+    public let response: ProofResponse
+    public let query: [CredentialCategory]
+    public let credential_category: CredentialCategory
+}
+
 /// The minimum verification level accepted.
 public enum VerificationLevel: String, Codable, Sendable {
 	case orb
@@ -66,7 +78,7 @@ struct CreateRequestPayload: Encodable, RequestPayload {
 }
 
 struct CredentialCategoryRequestPayload: Codable, RequestPayload {
-    typealias Response = Proof
+    typealias Response = CredentialCategoryProofResponse
 
     let app_id: String
     let action: String
