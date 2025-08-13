@@ -1,6 +1,10 @@
 import Crypto
 import Foundation
 
+public protocol RequestPayload: Encodable, Sendable {
+    associatedtype Response: Decodable & Sendable
+}
+
 /// The error returned by the World App.
 public enum AppError: String, Error, Codable, Sendable {
 	/// Failed to connect to the World App. Please create a new session and try again.
@@ -54,11 +58,11 @@ public enum AppError: String, Error, Codable, Sendable {
 	}
 }
 
-public struct Payload<Response: Decodable>: Codable {
+public struct Payload: Codable {
 	let iv: String
 	let payload: String
 
-	public func decrypt(with key: SymmetricKey) throws -> Response {
+	public func decrypt<Response: Decodable>(with key: SymmetricKey, responseType: Response.Type) throws -> Response {
 		let payload = Data(base64Encoded: self.payload)!
 		let nonce = try AES.GCM.Nonce(data: Data(base64Encoded: iv)!)
 

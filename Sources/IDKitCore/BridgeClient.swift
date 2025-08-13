@@ -1,40 +1,40 @@
 @preconcurrency import Crypto
 import Foundation
 
+/// The status of a verification request.
+public enum Status<Response: Decodable & Sendable>: Equatable, Sendable {
+    /// Waiting for the World App to retrieve the request
+    case waitingForConnection
+    /// Waiting for the user to confirm the request
+    case awaitingConfirmation
+    /// The user has confirmed the request. Contains the proof of verification.
+    case confirmed(Response)
+    /// The request has failed. Contains details about the failure.
+    case failed(AppError)
+
+    /// Check if two statuses are equal. Does not compare the associated values of `.confirmed` and `.failed`, only the case
+    public static func == (lhs: Status, rhs: Status) -> Bool {
+        switch (lhs, rhs) {
+        case (.waitingForConnection, .waitingForConnection),
+            (.awaitingConfirmation, .awaitingConfirmation),
+            (.confirmed, .confirmed),
+            (.failed, .failed):
+            return true
+        default:
+            return false
+        }
+    }
+}
+
 /// An abstraction over the Worldcoin Wallet Bridge.
-public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
-	/// The status of a verification request.
-	public enum Status: Equatable, Sendable {
-		/// Waiting for the World App to retrieve the request
-		case waitingForConnection
-		/// Waiting for the user to confirm the request
-		case awaitingConfirmation
-		/// The user has confirmed the request. Contains the proof of verification.
-		case confirmed(Response)
-		/// The request has failed. Contains details about the failure.
-		case failed(AppError)
-
-		/// Check if two statuses are equal. Does not compare the associated values of `.confirmed` and `.failed`, only the case
-		public static func == (lhs: Status, rhs: Status) -> Bool {
-			switch (lhs, rhs) {
-				case (.waitingForConnection, .waitingForConnection),
-				     (.awaitingConfirmation, .awaitingConfirmation),
-				     (.confirmed, .confirmed),
-				     (.failed, .failed):
-					return true
-				default:
-					return false
-			}
-		}
-	}
-
+public struct BridgeClient<Request: RequestPayload>: Sendable {
 	private struct CreateRequestResponse: Codable {
 		let request_id: UUID
 	}
 
 	private struct BridgeQueryResponse: Codable {
 		let status: String
-		let response: Optional<Payload<BridgeResponse<Response>>>
+        let response: Payload?
 	}
 
 	let requestID: UUID
@@ -62,7 +62,7 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 	/// # Errors
 	///
 	/// Throws an error if the request to the bridge fails, or if the response from the bridge is malformed.
-	public init<Request: Codable>(sending payload: Request, to bridgeURL: BridgeURL = .default) async throws {
+	public init(sending payload: Request, to bridgeURL: BridgeURL = .default) async throws {
 		self.bridgeURL = bridgeURL
 		key = SymmetricKey(size: .bits256)
 		iv = AES.GCM.Nonce()
@@ -78,11 +78,11 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 	/// # Errors
 	///
 	/// The stream will throw an error if the request to the bridge fails, or if the response from the bridge is malformed.
-	public func status() -> AsyncThrowingStream<Status, Error> {
-		let (stream, continuation) = AsyncThrowingStream.makeStream(of: Status.self)
+	public func status() -> AsyncThrowingStream<Status<Request.Response>, Error> {
+		let (stream, continuation) = AsyncThrowingStream.makeStream(of: Status<Request.Response>.self)
 
 		let task = Task.detached {
-			var currentStatus: Status = .waitingForConnection
+			var currentStatus: Status<Request.Response> = .waitingForConnection
 
 			continuation.yield(currentStatus)
 
@@ -93,7 +93,7 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 					if response.status == "completed" {
 						guard let payload = response.response else { throw AppError.unexpectedResponse }
 
-						switch try payload.decrypt(with: key) {
+                        switch try payload.decrypt(with: key, responseType: BridgeResponse<Request.Response>.self) {
 							case let .error(error): continuation.yield(.failed(error))
 							case let .success(proof): continuation.yield(.confirmed(proof))
 						}
@@ -102,7 +102,7 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 						break
 					}
 
-					let status: Status = switch response.status {
+					let status: Status<Request.Response> = switch response.status {
 						case "retrieved": .awaitingConfirmation
 						case "initialized": .waitingForConnection
 						default: throw AppError.unexpectedResponse
@@ -127,7 +127,7 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 		return stream
 	}
 
-	private static func create_request<Request: Decodable>(_ data: Payload<Request>, bridgeURL: BridgeURL) async throws -> CreateRequestResponse {
+	private static func create_request(_ data: Payload, bridgeURL: BridgeURL) async throws -> CreateRequestResponse {
 		var request = URLRequest(url: bridgeURL.rawURL.appendingPathComponent("request"))
 
 		request.httpMethod = "POST"

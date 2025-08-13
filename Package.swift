@@ -33,5 +33,6 @@ let package = Package(
 			path: "./Sources/IDKitCore",
 			swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
 		),
+        .testTarget(name: "Tests", dependencies: ["IDKit", "IDKitCore"], path: "./tests")
 	]
 )
