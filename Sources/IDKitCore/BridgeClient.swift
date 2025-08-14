@@ -34,7 +34,7 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 
 	private struct BridgeQueryResponse: Codable {
 		let status: String
-		let response: Optional<Payload<BridgeResponse<Response>>>
+		let response: Payload?
 	}
 
 	let requestID: UUID
@@ -93,7 +93,7 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 					if response.status == "completed" {
 						guard let payload = response.response else { throw AppError.unexpectedResponse }
 
-						switch try payload.decrypt(with: key) {
+                        switch try payload.decrypt(with: key, responseType: BridgeResponse<Response>.self) {
 							case let .error(error): continuation.yield(.failed(error))
 							case let .success(proof): continuation.yield(.confirmed(proof))
 						}
@@ -127,7 +127,7 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 		return stream
 	}
 
-	private static func create_request<Request: Decodable>(_ data: Payload<Request>, bridgeURL: BridgeURL) async throws -> CreateRequestResponse {
+	private static func create_request(_ data: Payload, bridgeURL: BridgeURL) async throws -> CreateRequestResponse {
 		var request = URLRequest(url: bridgeURL.rawURL.appendingPathComponent("request"))
 
 		request.httpMethod = "POST"
