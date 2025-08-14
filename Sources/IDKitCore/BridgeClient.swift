@@ -1,5 +1,8 @@
 @preconcurrency import Crypto
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// An abstraction over the Worldcoin Wallet Bridge.
 public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
