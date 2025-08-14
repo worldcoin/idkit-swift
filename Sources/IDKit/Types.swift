@@ -1,7 +1,7 @@
 import Foundation
 
 /// The categories of credentials that are associated to a user's World ID.
-public enum CredentialCategory: String, Codable, Equatable {
+public enum CredentialCategory: String, Codable, Sendable {
     /// The set of NFC credentials with no authentication.
     case document
     /// The set of NFC credentials with active or passive authentication.
@@ -45,6 +45,18 @@ public struct Proof: Codable, Sendable {
 			verification_level = try container.decode(Proof.CredentialType.self, forKey: .verification_level)
 		}
 	}
+}
+
+public struct CredentialCategoryProofResponse: Codable, Sendable {
+    public struct ProofResponse: Codable, Sendable {
+        public let proof: String
+        public let merkle_root: String
+        public let nullifier_hash: String
+    }
+
+    public let response: ProofResponse
+    public let query: [CredentialCategory]
+    public let credential_category: CredentialCategory
 }
 
 /// The minimum verification level accepted.

@@ -54,21 +54,23 @@ public enum AppError: String, Error, Codable, Sendable {
 	}
 }
 
-public struct Payload<Response: Decodable>: Codable {
+public struct Payload: Codable {
 	let iv: String
 	let payload: String
 
-	public func decrypt(with key: SymmetricKey) throws -> Response {
+    public func decrypt<Response: Decodable>(with key: SymmetricKey, responseType: Response.Type) throws -> Response {
 		let payload = Data(base64Encoded: self.payload)!
 		let nonce = try AES.GCM.Nonce(data: Data(base64Encoded: iv)!)
 
 		let cipher = payload.prefix(payload.count - 16)
 		let authTag = payload.suffix(16)
 
-		return try JSONDecoder().decode(Response.self, from: AES.GCM.open(
-			AES.GCM.SealedBox(nonce: nonce, ciphertext: cipher, tag: authTag),
-			using: key
-		))
+        let decrypted = try AES.GCM.open(
+            AES.GCM.SealedBox(nonce: nonce, ciphertext: cipher, tag: authTag),
+            using: key
+        )
+
+		return try JSONDecoder().decode(Response.self, from: decrypted)
 	}
 }
 
@@ -86,11 +88,9 @@ public enum BridgeResponse<Response: Decodable>: Decodable {
 
 		if let errorCode = try? container.decode(AppError.self, forKey: .errorCode) {
 			self = .error(errorCode)
-		} else if container.contains(.proof) {
-			let proof = try Response(from: decoder)
-			self = .success(proof)
 		} else {
-			throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "BridgeResponse doesn't match any expected type"))
+			let response = try Response(from: decoder)
+			self = .success(response)
 		}
 	}
 }

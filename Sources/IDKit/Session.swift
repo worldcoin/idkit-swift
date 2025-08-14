@@ -4,40 +4,54 @@ import Foundation
 import CryptoSwift
 
 /// A World ID session with the Wallet Bridge.
-public struct Session: Sendable {
-	public typealias Status = BridgeClient<Proof>.Status
+public struct Session<Response: Decodable & Sendable>: Sendable {
+	public typealias Status = BridgeClient<Response>.Status
 
-	let client: BridgeClient<Proof>
+	let client: BridgeClient<Response>
 
 	/// The URL that the user should be directed to in order to connect their World App to the client.
 	public var connect_url: URL {
 		client.connect_url
 	}
 
-	/// Create a new session with the Wallet Bridge.
+	/// Retrieve the status of the verification request.
+	/// Returns a stream of status updates, which will be updated as the request progresses.
 	///
 	/// # Errors
 	///
-	/// Throws an error if the request to the bridge fails, or if the response from the bridge is malformed.
-	public init(
-		_ appID: AppID,
-		action: String,
-		verificationLevel: VerificationLevel = .orb,
-		bridgeURL: BridgeURL = .default,
-		signal: String = "",
-		actionDescription: String? = nil
-	) async throws {
-		let payload = CreateRequestPayload(
-			appID: appID,
-			action: action,
-			signal: try encodeSignal(signal),
-			actionDescription: actionDescription,
-			verificationLevel: verificationLevel
-		)
-
-		client = try await BridgeClient(sending: payload, to: bridgeURL)
+	/// The stream will throw an error if the request to the bridge fails, or if the response from the bridge is malformed.
+	public func status() -> AsyncThrowingStream<Status, Error> {
+		return client.status()
 	}
+}
 
+public extension Session where Response == Proof {
+    /// Create a new session with the Wallet Bridge.
+    ///
+    /// # Errors
+    ///
+    /// Throws an error if the request to the bridge fails, or if the response from the bridge is malformed.
+    init(
+        _ appID: AppID,
+        action: String,
+        verificationLevel: VerificationLevel = .orb,
+        bridgeURL: BridgeURL = .default,
+        signal: String = "",
+        actionDescription: String? = nil
+    ) async throws {
+        let payload = CreateRequestPayload(
+            appID: appID,
+            action: action,
+            signal: try encodeSignal(signal),
+            actionDescription: actionDescription,
+            verificationLevel: verificationLevel
+        )
+
+        client = try await BridgeClient(sending: payload, to: bridgeURL)
+    }
+}
+
+public extension Session where Response == CredentialCategoryProofResponse {
     /// Establishes a session with Wallet Bridge for generating a proof that a Holder posesses at least one credential in any set of possible credential classes.
     /// - Parameters:
     ///   - appID: The app ID of the Relying Party.
@@ -49,7 +63,7 @@ public struct Session: Sendable {
     /// # Errors
     /// * If the request to the bridge fails.
     /// * If the response from the bridge is malformed.
-    public init(
+    init(
         _ appID: AppID,
         action: String,
         credentialCategories: Set<CredentialCategory>,
@@ -67,16 +81,6 @@ public struct Session: Sendable {
 
         client = try await BridgeClient(sending: payload, to: bridgeURL)
     }
-
-	/// Retrieve the status of the verification request.
-	/// Returns a stream of status updates, which will be updated as the request progresses.
-	///
-	/// # Errors
-	///
-	/// The stream will throw an error if the request to the bridge fails, or if the response from the bridge is malformed.
-	public func status() -> AsyncThrowingStream<Status, Error> {
-		return client.status()
-	}
 }
 
 func encodeSignal(_ signal: String) throws -> String {
