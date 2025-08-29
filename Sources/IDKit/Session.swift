@@ -47,7 +47,7 @@ public extension Session where Response == Proof {
             verificationLevel: verificationLevel
         )
 
-        client = try await BridgeClient(sending: payload, to: bridgeURL)
+        client = try await BridgeClient(sending: payload, to: bridgeURL, linkType: "wld")
     }
 }
 
@@ -79,7 +79,7 @@ public extension Session where Response == CredentialCategoryProofResponse {
             credentialCategories: credentialCategories
         )
 
-        client = try await BridgeClient(sending: payload, to: bridgeURL)
+        client = try await BridgeClient(sending: payload, to: bridgeURL, linkType: "cred")
     }
 }
 
