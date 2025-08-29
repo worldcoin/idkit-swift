@@ -44,11 +44,12 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 	let key: SymmetricKey
 	let iv: AES.GCM.Nonce
 	let bridgeURL: BridgeURL
+    let linkType: String
 
 	/// The URL that the user should be directed to in order to connect their World App to the client.
 	public var connect_url: URL {
 		var queryParams = [
-			URLQueryItem(name: "t", value: "wld"),
+			URLQueryItem(name: "t", value: linkType),
 			URLQueryItem(name: "i", value: requestID.uuidString),
 			URLQueryItem(name: "k", value: key.withUnsafeBytes { Data($0).base64EncodedString() }),
 		]
@@ -65,14 +66,15 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 	/// # Errors
 	///
 	/// Throws an error if the request to the bridge fails, or if the response from the bridge is malformed.
-	public init<Request: Codable>(sending payload: Request, to bridgeURL: BridgeURL = .default) async throws {
+    public init<Request: Codable>(sending payload: Request, to bridgeURL: BridgeURL = .default, linkType: String = "wld") async throws {
 		self.bridgeURL = bridgeURL
-		key = SymmetricKey(size: .bits256)
-		iv = AES.GCM.Nonce()
+        self.linkType = linkType
+        key = SymmetricKey(size: .bits256)
+        iv = AES.GCM.Nonce()
 
-		let response = try await Self.create_request(payload.encrypt(with: key, nonce: iv), bridgeURL: bridgeURL)
+        let response = try await Self.create_request(payload.encrypt(with: key, nonce: iv), bridgeURL: bridgeURL)
 
-		requestID = response.request_id
+        requestID = response.request_id
 	}
 
 	/// Retrieve the status of the verification request.
