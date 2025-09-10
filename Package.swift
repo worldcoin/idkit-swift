@@ -17,7 +17,8 @@ let package = Package(
 		.target(
 			name: "IDKit",
 			dependencies: [
-				.product(name: "BigInt", package: "BigInt"),
+                .product(name: "BigInt", package: "BigInt"),
+                .product(name: "Crypto", package: "swift-crypto"),
 				.product(name: "CryptoSwift", package: "CryptoSwift"),
 			],
 			path: "./Sources/IDKit",
