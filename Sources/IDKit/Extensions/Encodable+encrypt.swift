@@ -1,7 +1,7 @@
 import Crypto
 import Foundation
 
-public extension Encodable {
+extension Encodable {
 	func encrypt(with key: SymmetricKey, nonce: AES.GCM.Nonce) throws -> Payload {
 		let sealedBox = try AES.GCM.seal(JSONEncoder().encode(self), using: key, nonce: nonce)
 		var payload = sealedBox.ciphertext

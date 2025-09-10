@@ -1,5 +1,4 @@
 import BigInt
-import IDKitCore
 import Foundation
 import CryptoSwift
 
