@@ -47,19 +47,25 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
     let linkType: String
 
 	/// The URL that the user should be directed to in order to connect their World App to the client.
+    @available(*, deprecated, renamed: "connectURL", message: "Prefer connectURL over connect_url")
 	public var connect_url: URL {
-		var queryParams = [
-			URLQueryItem(name: "t", value: linkType),
-			URLQueryItem(name: "i", value: requestID.uuidString),
-			URLQueryItem(name: "k", value: key.withUnsafeBytes { Data($0).base64EncodedString() }),
-		]
-
-		if bridgeURL != .default {
-			queryParams.append(URLQueryItem(name: "b", value: bridgeURL.rawURL.absoluteString))
-		}
-
-		return URL(string: "https://worldcoin.org/verify")!.appending(queryItems: queryParams)
+        verificationURL
 	}
+
+    /// The URL to open so a user can create or use their World App to handle your request. On iOS, this is a universal link that launches either World App or World App Clip depending on the installation status of World App. For more info, see https://developer.apple.com/documentation/appclip
+    public var verificationURL: URL {
+        var queryParams = [
+            URLQueryItem(name: "t", value: linkType),
+            URLQueryItem(name: "i", value: requestID.uuidString),
+            URLQueryItem(name: "k", value: key.withUnsafeBytes { Data($0).base64EncodedString() }),
+        ]
+
+        if bridgeURL != .default {
+            queryParams.append(URLQueryItem(name: "b", value: bridgeURL.rawURL.absoluteString))
+        }
+
+        return URL(string: "https://worldcoin.org/verify")!.appending(queryItems: queryParams)
+    }
 
 	/// Create a new session with the Wallet Bridge.
 	///

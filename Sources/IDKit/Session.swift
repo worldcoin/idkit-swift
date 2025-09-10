@@ -1,5 +1,4 @@
 import BigInt
-import IDKitCore
 import Foundation
 import CryptoSwift
 
@@ -7,12 +6,18 @@ import CryptoSwift
 public struct Session<Response: Decodable & Sendable>: Sendable {
 	public typealias Status = BridgeClient<Response>.Status
 
-	let client: BridgeClient<Response>
+	private let client: BridgeClient<Response>
 
 	/// The URL that the user should be directed to in order to connect their World App to the client.
+    @available(*, deprecated, renamed: "verificationURL", message: "Prefer verificationURL")
 	public var connect_url: URL {
-		client.connect_url
+		client.verificationURL
 	}
+
+    /// The URL that the user should be directed to in order to connect their World App to the client.
+    public var verificationURL: URL {
+        client.verificationURL
+    }
 
 	/// Retrieve the status of the verification request.
 	/// Returns a stream of status updates, which will be updated as the request progresses.
