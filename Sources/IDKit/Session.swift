@@ -2,6 +2,20 @@ import BigInt
 import Foundation
 import CryptoSwift
 
+public enum SessionError: Error, CustomDebugStringConvertible {
+    case incorrectDataEncoding(String)
+    case deferredOnboardingURLInvalid(String)
+
+    public var debugDescription: String {
+        switch self {
+        case .incorrectDataEncoding(let value):
+            return "An unexpected data encoding was found: \(value). This is a bug in idkit-swift. Please file an issue: https://github.com/worldcoin/idkit-swift/issues"
+        case .deferredOnboardingURLInvalid(let value):
+            return "idkit was unable to create a valid deferred onboarding URL: \(value). This is a bug in idkit-swift. Please file an issue: https://github.com/worldcoin/idkit-swift/issues"
+        }
+    }
+}
+
 /// A World ID session with the Wallet Bridge.
 public struct Session<Response: Decodable & Sendable>: Sendable {
 	public typealias Status = BridgeClient<Response>.Status
@@ -14,9 +28,27 @@ public struct Session<Response: Decodable & Sendable>: Sendable {
 		client.verificationURL
 	}
 
-    /// The URL that the user should be directed to in order to connect their World App to the client.
+    /// The URL that the user should be directed to in order to connect their World App to the client. If World App isn't installed, this leads to the App Store for users to install the app. Clients of `idkit-swift` will need to re-issue the request in this case since iOS has no deferred deep linking capabilities.
     public var verificationURL: URL {
         client.verificationURL
+    }
+    
+    /// A URL that links to World App Clip or World App, depending on what the user has installed. This URL is used to handle deferred deep linking, and facilitates on-boarding new users to World who may not have an account or a way to respond to a request yet. 
+    public var deferredOnboardingURL: URL {
+        get throws {
+            guard let data = "\(verificationURL)".data(using: .utf8) else {
+                throw SessionError.incorrectDataEncoding("\(verificationURL)")
+            }
+
+            let experience = data.base64URLEncodedString()
+            let urlString = "https://appclip.apple.com/id?p=org.worldcoin.insight.Clip&experience=\(experience)"
+
+            guard let deferredOnboardingURL = URL(string: urlString) else {
+                throw SessionError.deferredOnboardingURLInvalid(urlString)
+            }
+
+            return deferredOnboardingURL
+        }
     }
 
 	/// Retrieve the status of the verification request.
