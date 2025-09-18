@@ -6,6 +6,8 @@ public enum CredentialCategory: String, Codable, Sendable {
     case document
     /// The set of NFC credentials with active or passive authentication.
     case secure_document
+    /// The set of credentials that proof personhood (I.E Iris Code)
+    case personhood
 }
 
 public struct Proof: Codable, Sendable {
@@ -60,7 +62,7 @@ public struct CredentialCategoryProofResponse: Codable, Sendable {
 }
 
 /// The minimum verification level accepted.
-public enum VerificationLevel: String, Codable {
+public enum VerificationLevel: String, Codable, Sendable {
 	case orb
 	case device
     case document
@@ -102,13 +104,22 @@ struct CredentialCategoryRequestPayload: Codable {
     let signal: String
     let action_description: Optional<String>
     let credential_categories: Set<CredentialCategory>
+    let orb_verification_request: CreateRequestPayload?
 
-    init(appID: AppID, action: String, signal: String, actionDescription: String?, credentialCategories: Set<CredentialCategory>) {
+    init(
+        appID: AppID,
+        action: String,
+        signal: String,
+        actionDescription: String?,
+        credentialCategories: Set<CredentialCategory>,
+        orbVerificationRequest: CreateRequestPayload?
+    ) {
         self.action = action
         self.signal = signal
         app_id = appID.rawId
         action_description = actionDescription
         credential_categories = credentialCategories
+        orb_verification_request = orbVerificationRequest
     }
 }
 
