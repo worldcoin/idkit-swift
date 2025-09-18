@@ -22,3 +22,12 @@ import Testing
 		}
 	}
 }
+
+@Test
+func multipleProofs () async throws {
+    let session = try await Session(AppID(""), action: "test-action", credentialCategories: [.biometric, .secure_document])
+
+    let url = session.deferredOnboardingURL
+
+    print(url)
+}
