@@ -23,11 +23,19 @@ public enum AppError: String, Error, Codable, Sendable {
 	case unexpectedResponse = "unexpected_response"
 	/// Verification failed by the app. Please contact the app owner for details.
 	case failedByHostApp = "failed_by_host_app"
+    /// Wallet Bridge returned an error code when the request was added.
+    case bridgeFailedToAddRequest = "bridge_failed_to_add_request"
+    /// Wallet Bridge returned an unrecognizable response (I.E it wasn't HTTP/S)
+    case unrecognizedBridgeResponse = "unrecognized_bridge_response"
 	/// Something unexpected went wrong. Please try again.
 	case genericError = "generic_error"
 
 	public var localizedDescription: String {
 		switch self {
+            case .unrecognizedBridgeResponse:
+                return "Wallet Bridge returned something other than HTTP/S. Use a different bridge."
+            case .bridgeFailedToAddRequest:
+                return "Wallet Bridge failed to add the request. Please try again."
 			case .connectionFailed:
 				return "Failed to connect to the World App. Please create a new session and try again."
 			case .verificationRejected:
