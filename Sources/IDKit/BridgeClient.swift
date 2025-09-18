@@ -147,7 +147,15 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 		request.setValue("idkit-swift", forHTTPHeaderField: "User-Agent")
 		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-		let (data, _) = try await URLSession.shared.data(for: request)
+		let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AppError.unrecognizedBridgeResponse
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw AppError.bridgeFailedToAddRequest
+        }
 
 		return try JSONDecoder().decode(CreateRequestResponse.self, from: data)
 	}
