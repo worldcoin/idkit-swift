@@ -5,7 +5,7 @@
 # IDKit (Swift)
 
 [![Swift Version](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fm1guelpf%2Fziggy-vapor%2Fbadge%3Ftype%3Dswift-versions&color=brightgreen)](http://swift.org)
-[![docs](https://img.shields.io/badge/docs-latest-blue.svg)](https://swiftpackageindex.com/worldcoin/idkit-swift/documentation)
+[![docs](https://img.shields.io/badge/docs-latest-blue.svg)](https://swiftpackageindex.com/worldcoin/idkit-swift)
 
 The `IDKit` library provides a simple Swift interface for prompting users for World ID proofs. For our Web and React Native SDKs, check out the [IDKit JS library](https://github.com/worldcoin/idkit-js).
 
