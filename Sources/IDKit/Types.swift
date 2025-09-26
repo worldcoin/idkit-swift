@@ -6,6 +6,8 @@ public enum CredentialCategory: String, Codable, Sendable {
     case document
     /// The set of NFC credentials with active or passive authentication.
     case secure_document
+    /// The set of credentials that proof personhood (I.E Iris Code)
+    case personhood
 }
 
 public struct Proof: Codable, Sendable {
@@ -49,18 +51,19 @@ public struct Proof: Codable, Sendable {
 
 public struct CredentialCategoryProofResponse: Codable, Sendable {
     public struct ProofResponse: Codable, Sendable {
+        public let action: String
         public let proof: String
         public let merkle_root: String
         public let nullifier_hash: String
+        public let verification_level: Proof.CredentialType
     }
 
-    public let response: ProofResponse
+    public let response: [ProofResponse]
     public let query: [CredentialCategory]
-    public let credential_category: CredentialCategory
 }
 
 /// The minimum verification level accepted.
-public enum VerificationLevel: String, Codable {
+public enum VerificationLevel: String, Codable, Sendable {
 	case orb
 	case device
     case document
@@ -103,7 +106,13 @@ struct CredentialCategoryRequestPayload: Codable {
     let action_description: Optional<String>
     let credential_categories: Set<CredentialCategory>
 
-    init(appID: AppID, action: String, signal: String, actionDescription: String?, credentialCategories: Set<CredentialCategory>) {
+    init(
+        appID: AppID,
+        action: String,
+        signal: String,
+        actionDescription: String?,
+        credentialCategories: Set<CredentialCategory>,
+    ) {
         self.action = action
         self.signal = signal
         app_id = appID.rawId
