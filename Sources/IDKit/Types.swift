@@ -105,7 +105,6 @@ struct CredentialCategoryRequestPayload: Codable {
     let signal: String
     let action_description: Optional<String>
     let credential_categories: Set<CredentialCategory>
-    let orb_verification_request: CreateRequestPayload?
 
     init(
         appID: AppID,
@@ -113,14 +112,12 @@ struct CredentialCategoryRequestPayload: Codable {
         signal: String,
         actionDescription: String?,
         credentialCategories: Set<CredentialCategory>,
-        orbVerificationRequest: CreateRequestPayload?
     ) {
         self.action = action
         self.signal = signal
         app_id = appID.rawId
         action_description = actionDescription
         credential_categories = credentialCategories
-        orb_verification_request = orbVerificationRequest
     }
 }
 

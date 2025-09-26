@@ -108,27 +108,12 @@ public extension Session where Response == CredentialCategoryProofResponse {
         signal: String = "",
         actionDescription: String? = nil
     ) async throws {
-        var credentialCategories = credentialCategories
-        var orbVerificationRequest: CreateRequestPayload?
-
-        if credentialCategories.contains(.personhood) {
-            credentialCategories.remove(.personhood)
-            orbVerificationRequest = CreateRequestPayload(
-                appID: appID,
-                action: action,
-                signal: try encodeSignal(signal),
-                actionDescription: actionDescription,
-                verificationLevel: .orb
-            )
-        }
-
         let payload = CredentialCategoryRequestPayload(
             appID: appID,
             action: action,
             signal: try encodeSignal(signal),
             actionDescription: actionDescription,
-            credentialCategories: credentialCategories,
-            orbVerificationRequest: orbVerificationRequest
+            credentialCategories: credentialCategories
         )
 
         client = try await BridgeClient(sending: payload, to: bridgeURL, linkType: "cred")
