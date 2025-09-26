@@ -51,14 +51,15 @@ public struct Proof: Codable, Sendable {
 
 public struct CredentialCategoryProofResponse: Codable, Sendable {
     public struct ProofResponse: Codable, Sendable {
+        public let action: String
         public let proof: String
         public let merkle_root: String
         public let nullifier_hash: String
+        public let verification_level: Proof.CredentialType
     }
 
-    public let response: ProofResponse
+    public let response: [ProofResponse]
     public let query: [CredentialCategory]
-    public let credential_category: CredentialCategory
 }
 
 /// The minimum verification level accepted.
