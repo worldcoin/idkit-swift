@@ -87,8 +87,10 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 	/// Returns a stream of status updates, which will be updated as the request progresses.
     /// This interface polls indefinetly. Clients are expected to implement a timeout with their preferred duration.
 	///
+    /// # Note
+    /// Wallet Bridge times out a request after 15 minutes, though clients can prefer a shorter duration.
+    ///
 	/// # Errors
-	///
 	/// The stream will throw an error if the request to the bridge fails, or if the response from the bridge is malformed.
 	public func status() -> AsyncThrowingStream<Status, Error> {
 		let (stream, continuation) = AsyncThrowingStream.makeStream(of: Status.self)
