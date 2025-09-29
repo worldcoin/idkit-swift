@@ -85,6 +85,7 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 
 	/// Retrieve the status of the verification request.
 	/// Returns a stream of status updates, which will be updated as the request progresses.
+    /// This interface polls indefinetly. Clients are expected to implement a timeout with their preferred duration.
 	///
 	/// # Errors
 	///
