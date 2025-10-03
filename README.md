@@ -17,7 +17,7 @@ import IDKit
 let session = try await Session(AppID("app_ce4cb73cb75fc3b73b71ffb4de178410"), action: "test-action")
 
 // Generate a QR Code with this URL and scan it with World App
-let connect_url = session.connect_url
+let connect_url = session.verificationURL
 
 for try await status in session.status() {
 	switch status {
