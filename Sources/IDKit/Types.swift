@@ -111,7 +111,7 @@ struct CredentialCategoryRequestPayload: Codable {
         action: String,
         signal: String,
         actionDescription: String?,
-        credentialCategories: Set<CredentialCategory>
+        credentialCategories: Set<CredentialCategory>,
     ) {
         self.action = action
         self.signal = signal
