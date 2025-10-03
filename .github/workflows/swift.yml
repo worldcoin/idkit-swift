@@ -14,13 +14,15 @@ jobs:
         strategy:
           fail-fast: false
           matrix:
-            os: [ubuntu-latest, macos-latest]
-            swift: ["5.9", "5.10", "6.0", "6.1", "main-snapshot"]
-            exclude: # as far as I can tell, Swiftly started including Linux builds after 6.0
-              - os: ubuntu-latest
-                swift: "5.9"
-              - os: ubuntu-latest
-                swift: "5.10"
+           os: [ubuntu-latest, macos-latest]
+           swift: ["5.9", "5.10", "6.0", "6.1"]
+           exclude:
+            - os: ubuntu-latest
+              swift: "5.9"
+            - os: ubuntu-latest
+              swift: "5.10"
+            - os: macos-latest
+              swift: "main-snapshot"
         runs-on: ${{ matrix.os }}
         steps:
             - name: Install Swift toolchain
