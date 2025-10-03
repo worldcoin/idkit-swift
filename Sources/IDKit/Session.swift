@@ -5,9 +5,12 @@ import CryptoSwift
 public enum SessionError: Error, CustomDebugStringConvertible {
     case incorrectDataEncoding(String)
     case deferredOnboardingURLInvalid(String)
+    case emptyCredentialCategories
 
     public var debugDescription: String {
         switch self {
+        case .emptyCredentialCategories:
+            return "The requested credential categories set was empty. This is a programmer error as an empty credential presentation doesn't make sense."
         case .incorrectDataEncoding(let value):
             return "An unexpected data encoding was found: \(value). This is a bug in idkit-swift. Please file an issue: https://github.com/worldcoin/idkit-swift/issues"
         case .deferredOnboardingURLInvalid(let value):
@@ -21,6 +24,7 @@ public struct Session<Response: Decodable & Sendable>: Sendable {
 	public typealias Status = BridgeClient<Response>.Status
 
 	private let client: BridgeClient<Response>
+    private var credentialCategories: Set<CredentialCategory>? = nil
 
 	/// The URL that the user should be directed to in order to connect their World App to the client.
     @available(*, deprecated, renamed: "verificationURL", message: "Prefer verificationURL")
@@ -33,9 +37,18 @@ public struct Session<Response: Decodable & Sendable>: Sendable {
         client.verificationURL
     }
     
-    /// A URL that links to World App Clip or World App, depending on what the user has installed. This URL is used to handle deferred deep linking, and facilitates on-boarding new users to World who may not have an account or a way to respond to a request yet. 
+    /// A URL that links to World App Clip or World App, depending on what the user has installed. This URL is used to handle deferred deep linking, and facilitates on-boarding new users to World who may not have an account or a way to respond to a request yet.
+    /// This returns `verificationURL` if the credential presentation doesn't contain at least `document` or `secure_document` as World App clip doesn't support deferred on-boarding for exclusively generating personhood proofs.
     public var deferredOnboardingURL: URL {
         get throws {
+            guard let credentialCategories else {
+                return verificationURL
+            }
+
+            guard credentialCategories.contains(.document) || credentialCategories.contains(.secure_document) else {
+                return verificationURL
+            }
+
             guard let data = "\(verificationURL)".data(using: .utf8) else {
                 throw SessionError.incorrectDataEncoding("\(verificationURL)")
             }
@@ -89,17 +102,18 @@ public extension Session where Response == Proof {
 }
 
 public extension Session where Response == CredentialCategoryProofResponse {
-    /// Establishes a session with Wallet Bridge for generating a proof that a Holder posesses at least one credential in any set of possible credential classes.
+    /// Establishes a session with Wallet Bridge for generating a proof that a Holder possesses at least one credential in any set of possible credential classes.
     /// - Parameters:
     ///   - appID: The app ID of the Relying Party.
     ///   - action: The identifier of the action related to the attestation.
-    ///   - credentialCategories: The set of credentials for which a proof should be generated. The strictest credential will be preferred.
+    ///   - credentialCategories: The set of credentials for which a proof should be generated. Must not be empty.
     ///   - bridgeURL: The URL of the Wallet Bridge instance to establish a session against.
     ///   - signal: The ZK signal associated with this session.
     ///   - actionDescription: A description of the action.
     /// # Errors
     /// * If the request to the bridge fails.
     /// * If the response from the bridge is malformed.
+    /// * If credentialCategories is empty.
     init(
         _ appID: AppID,
         action: String,
@@ -108,6 +122,12 @@ public extension Session where Response == CredentialCategoryProofResponse {
         signal: String = "",
         actionDescription: String? = nil
     ) async throws {
+        guard !credentialCategories.isEmpty else {
+            throw SessionError.emptyCredentialCategories
+        }
+
+        self.credentialCategories = credentialCategories
+
         let payload = CredentialCategoryRequestPayload(
             appID: appID,
             action: action,
