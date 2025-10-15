@@ -1,4 +1,4 @@
-import Crypto
+import CryptoKit
 import Foundation
 
 /// The error returned by the World App.

@@ -8,25 +8,25 @@ let package = Package(
 	products: [
 		.library(name: "IDKit", targets: ["IDKit"]),
 	],
-	dependencies: [
-		.package(url: "https://github.com/attaswift/BigInt.git", from: "5.3.0"),
-        .package(url: "https://github.com/krzyzanowskim/CryptoSwift.git", from: "1.9.0"),
-		.package(url: "https://github.com/apple/swift-crypto.git", "1.0.0"..<"4.0.0"),
-	],
+	dependencies: [],
 	targets: [
+		.target(
+			name: "Keccak",
+			path: "./Sources/Keccak",
+			publicHeadersPath: "include"
+		),
 		.target(
 			name: "IDKit",
 			dependencies: [
-                .product(name: "BigInt", package: "BigInt"),
-                .product(name: "Crypto", package: "swift-crypto"),
-				.product(name: "CryptoSwift", package: "CryptoSwift"),
+				"Keccak",
 			],
 			path: "./Sources/IDKit",
 			swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
 		),
-        .testTarget(
-            name: "IDKitTests",
-            dependencies: ["IDKit"]
-        )
+		.testTarget(
+			name: "IDKitTests",
+			dependencies: ["IDKit"],
+			swiftSettings: [.enableExperimentalFeature("SwiftTesting")]
+		),
 	]
 )

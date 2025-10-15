@@ -1,6 +1,4 @@
-import BigInt
 import Foundation
-import CryptoSwift
 
 public enum SessionError: Error, CustomDebugStringConvertible {
     case incorrectDataEncoding(String)
@@ -92,7 +90,7 @@ public extension Session where Response == Proof {
         let payload = CreateRequestPayload(
             appID: appID,
             action: action,
-            signal: try encodeSignal(signal),
+            signal: encodeSignal(signal),
             actionDescription: actionDescription,
             verificationLevel: verificationLevel
         )
@@ -131,7 +129,7 @@ public extension Session where Response == CredentialCategoryProofResponse {
         let payload = CredentialCategoryRequestPayload(
             appID: appID,
             action: action,
-            signal: try encodeSignal(signal),
+            signal: encodeSignal(signal),
             actionDescription: actionDescription,
             credentialCategories: credentialCategories
         )
@@ -140,18 +138,15 @@ public extension Session where Response == CredentialCategoryProofResponse {
     }
 }
 
-func encodeSignal(_ signal: String) throws -> String {
-	// Encode signal data
-	let signalData = signal.data(using: .utf8) ?? Data()
-	
-	// Convert Data to bytes array and use SHA3 with keccak256 variant
-	let bytes = [UInt8](signalData)
-	let hash = SHA3(variant: .keccak256).calculate(for: bytes)
-	
-	// Convert to hex string
-	let hashData = Data(hash)
-	let hexString = String(BigUInt(hashData) >> 8, radix: 16)
-	// Pad with leading zeros to ensure 64 characters
-	let paddedHex = String(repeating: "0", count: max(0, 64 - hexString.count)) + hexString
+func encodeSignal(_ signal: String) -> String {
+	// Encode signal data and compute Keccak-256
+	let hash = SHA3Keccak256.hash(data: Data(signal.utf8))
+
+	// Drop the least-significant byte to match the legacy BigInt >> 8 behavior
+	let truncated = Array(hash).dropLast()
+	let hex = truncated.map { String(format: "%02x", $0) }.joined()
+
+	// Pad with leading zeros to ensure a 32-byte (64 hex chars) string
+	let paddedHex = String(repeating: "0", count: max(0, 64 - hex.count)) + hex
 	return "0x" + paddedHex
 }
