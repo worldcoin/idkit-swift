@@ -14,61 +14,27 @@ jobs:
         strategy:
           fail-fast: false
           matrix:
-           os: [ubuntu-latest, macos-14]
-           swift: ["5.9", "5.10", "6.0", "6.1"]
-           exclude:
-            - os: ubuntu-latest
-              swift: "5.9"
-            - os: ubuntu-latest
-              swift: "5.10"
-            - os: macos-latest
-              swift: "main-snapshot"
+           include:
+            - os: macos-15
+              xcode: "16.0"
+            - os: macos-15
+              xcode: "16.1"
+            - os: macos-15
+              xcode: "16.2"
+            - os: macos-15
+              xcode: "16.3"
+            - os: macos-15
+              xcode: "16.4"
+            - os: macos-15
+              xcode: "26.0.1"
+            - os: macos-26
+              xcode: "16.4"
+            - os: macos-26
+              xcode: "26.0.1"
         runs-on: ${{ matrix.os }}
+        env:
+          DEVELOPER_DIR: /Applications/Xcode_${{ matrix.xcode }}.app/Contents/Developer
         steps:
-            - name: Install Swift toolchain
-              shell: bash
-              run: |
-                set -e
-
-                export SWIFTLY_BIN_DIR=${{ github.workspace }}/.swiftly/bin
-                export SWIFTLY_HOME_DIR=${{ github.workspace }}/.swiftly/share
-
-                echo "TOOLCHAINS=swift" >> $GITHUB_ENV
-                echo "$SWIFTLY_BIN_DIR" >> $GITHUB_PATH
-                echo "SWIFTLY_BIN_DIR=$SWIFTLY_BIN_DIR" >> $GITHUB_ENV
-                echo "SWIFTLY_HOME_DIR=$SWIFTLY_HOME_DIR" >> $GITHUB_ENV
-
-                export PATH=$SWIFTLY_BIN_DIR:$PATH
-
-                mkdir -p $SWIFTLY_BIN_DIR
-                mkdir -p $SWIFTLY_HOME_DIR
-
-                if ${{ runner.os == 'Linux' }} ; then
-                  curl -O https://download.swift.org/swiftly/linux/swiftly-$(uname -m).tar.gz
-                  tar -xzf swiftly-$(uname -m).tar.gz -C $SWIFTLY_BIN_DIR
-                  rm swiftly-$(uname -m).tar.gz
-                  sudo apt-get update
-                else
-                  curl -O https://download.swift.org/swiftly/darwin/swiftly.pkg
-                  installer -pkg swiftly.pkg -target CurrentUserHomeDirectory
-                  cp ~/.swiftly/bin/swiftly $SWIFTLY_BIN_DIR
-                  rm swiftly.pkg
-                fi
-
-                swiftly init --no-modify-profile --quiet-shell-followup --assume-yes --skip-install --verbose
-                echo "swiftly version: $(swiftly --version)" >&2
-
-                swiftly install --assume-yes --post-install-file "${HOME}/.swiftly-postinstall-cmds.sh" --use ${{ matrix.swift }}
-                if [[ -f "${HOME}/.swiftly-postinstall-cmds.sh" ]]; then
-                  export DEBIAN_FRONTEND=noninteractive # prevent Debian/Ubuntu installs from hanging on tzdata
-                  if [[ "$(id -un)" == 'root' ]]; then
-                    . "${HOME}/.swiftly-postinstall-cmds.sh"
-                  else
-                    sudo bash -c ". '${HOME}/.swiftly-postinstall-cmds.sh'"
-                  fi
-                  rm "${HOME}/.swiftly-postinstall-cmds.sh"
-                fi
-
             - uses: actions/checkout@v4
 
             - name: Restore .build
@@ -76,15 +42,15 @@ jobs:
               uses: actions/cache/restore@v4
               with:
                 path: .build
-                restore-keys: "swiftpm-tests-build-${{ runner.os }}-${{ matrix.swift }}-"
-                key: "swiftpm-tests-build-${{ runner.os }}-${{ matrix.swift }}-${{ github.event.pull_request.base.sha || github.event.after }}"
+                restore-keys: "swiftpm-tests-build-${{ runner.os }}-${{ matrix.xcode }}-"
+                key: "swiftpm-tests-build-${{ runner.os }}-${{ matrix.xcode }}-${{ github.event.pull_request.base.sha || github.event.after }}"
 
-            - name: Build
-              run: swift build -v
+            - name: Build and Test
+              run: set -o pipefail && swift test | xcbeautify --renderer github-actions
 
             - name: Cache .build
               if: steps.restore-build.outputs.cache-hit != 'true'
               uses: actions/cache/save@v4
               with:
                 path: .build
-                key: "swiftpm-tests-build-${{ runner.os }}-${{ matrix.swift }}-${{ github.event.pull_request.base.sha || github.event.after }}"
+                key: "swiftpm-tests-build-${{ runner.os }}-${{ matrix.xcode }}-${{ github.event.pull_request.base.sha || github.event.after }}"
