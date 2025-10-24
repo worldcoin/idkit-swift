@@ -1,6 +1,7 @@
 import BigInt
-import Foundation
 import CryptoSwift
+import Foundation
+import UIKit
 
 public enum SessionError: Error, CustomDebugStringConvertible {
     case incorrectDataEncoding(String)
@@ -140,7 +141,7 @@ public extension Session where Response == CredentialCategoryProofResponse {
     }
 }
 
-func encodeSignal(_ signal: String) throws -> String {
+public func encodeSignal(_ signal: String) throws -> String {
 	// Encode signal data
 	let signalData = signal.data(using: .utf8) ?? Data()
 	
