@@ -84,7 +84,7 @@ let session = try await Session(appID, action: "your_action", credentialCategori
 // 3. Create a universal link that opens either World App Clip or World App. This approach significantly speeds up getting proofs from users who don't have a verified World ID.
 let deferredOnboardingURL = try session.deferredOnboardingURL
 
-// 3. Launch World App, or World App Clip, with the credential presentation request.
+// 4. Launch World App, or World App Clip, with the credential presentation request.
 UIApplication.shared.open(deferredOnboardingURL)
 
 // 4. Poll for the result of the request. 
