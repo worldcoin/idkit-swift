@@ -87,7 +87,7 @@ let deferredOnboardingURL = try session.deferredOnboardingURL
 // 4. Launch World App, or World App Clip, with the credential presentation request.
 UIApplication.shared.open(deferredOnboardingURL)
 
-// 4. Poll for the result of the request. 
+// 5. Poll for the result of the request. 
 for try await status in session.status() {
 	switch status {
 	case .waitingForConnection:
