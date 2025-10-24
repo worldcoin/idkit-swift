@@ -1,7 +1,6 @@
 import BigInt
-import CryptoSwift
 import Foundation
-import UIKit
+import CryptoSwift
 
 public enum SessionError: Error, CustomDebugStringConvertible {
     case incorrectDataEncoding(String)
