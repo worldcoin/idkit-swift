@@ -7,26 +7,32 @@
 [![Swift Version](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fm1guelpf%2Fziggy-vapor%2Fbadge%3Ftype%3Dswift-versions&color=brightgreen)](http://swift.org)
 [![docs](https://img.shields.io/badge/docs-latest-blue.svg)](https://swiftpackageindex.com/worldcoin/idkit-swift)
 
-The `IDKit` library provides a simple Swift interface for prompting users for World ID proofs. For our Web and React Native SDKs, check out the [IDKit JS library](https://github.com/worldcoin/idkit-js).
+The `IDKit` library provides a simple Swift interface for prompting users for World ID proofs. For other platforms, check out the following:
+- [Kotlin](https://github.com/worldcoin/idkit-kotlin)
+- [React and React Native](https://github.com/worldcoin/idkit-js)
 
 ## Usage
-There are two main ways to use `idkit-swift`:
+There are three main ways to use `idkit-swift`:
 
-1. To get a user's verification level. For more on the concept of verification level, see [this page](https://docs.world.org/world-id/concepts).
-2. To request credential presentations from a user. Credential presentations are a direct request for a proof that the user holds a certain credential, regardless of the corresponding verification level. If you ask for a `secure_document` proof, you get a `secure_document` proof if the user holds that credential.
+1. To request proof of a minimum verification level. For example, if you ask for proof with a minimum level `document` proof, you may get a `document`, `secure_document` or `orb` proof, depending on the highest verification level that the user has.
 
-Both usages require the creation of a `Session` with our hosted [Wallet Bridge service](https://github.com/worldcoin/wallet-bridge), then polling for an update from the World App instance that responded to the request. Wallet Bridge acts as an intermediary for the sensitive details of the challenge/response between your app and World App.
+   For more on the concept of verification levels, see [this page](https://docs.world.org/world-id/concepts).
+2. To request proof of verification with specific credential categories. For example, if you ask for a `secure_document` proof, you will only receive a proof if the user verified using a `secure_document` category of credential.
+
+3. To request proof that the user is 18+ years of age. The World App only allows `document` or `secure_document` verifications if the user is 18+. Therefore, you can request proof of verification using one or both of these two categories as a proxy of proof that user is 18+ years of age.
+
+All of these require the creation of a `Session` with our hosted [Wallet Bridge service](https://github.com/worldcoin/wallet-bridge), then polling for an update from the World App instance that the user is using to respond to the request. Wallet Bridge acts as a secure relay between your app and World App.
 
 > [!CAUTION]
 > A `Session` instance is valid only for a single proof request, and should not be re-used or cached. It's reasonably inexpensive to create, though does make a network call during initialization. By design, re-using `Sessions` will lead to errors that are user-facing in both World App and your app.
 
-### Verification Level
+### Proof of Minimum Verification Level
 Use the verification level API when you're interested in getting the strongest human assurance level of a user. 
 
 ```swift
 import IDKit
 
- // 1. Initialize your AppID
+ // 1. Initialize your App ID configured in World Developer Portal.
 let appID: AppID
 do {
 	appID = try AppID("your_app_id")
@@ -35,7 +41,7 @@ do {
 	return
 }
 
-// 2. Create a session with Wallet Bridge. This requests that the user proves they're a human with an orb verification.
+// 2. Create a session with Wallet Bridge. This requests that the user proves they're a human with an orb level verification.
 let session = try await Session(appID, action: "your_action", verificationLevel: .orb)
 
 // 3. Create a universal link compatible with World App.
@@ -59,12 +65,12 @@ for try await status in session.status() {
 }
 ```
 
-### Credential Presentation
-Use the credential presentation API when you're interested in knowing if a user possesses a certain kind of credential. You request a presentation from a _category_ of credentials, based on how World ID distinguishes between credentials. There are 3 categories:
+### Proof of Specific Credential Categories
+Use this API when you're interested in knowing if a user possesses a credential from one of the specific categories you specify. There are 3 supported categories:
 
 1. `document` - for credentials derived from NFC-enabled documents that can be cloned.
 2. `secure_document` - for credentials derived from NFC-enabled documents that can't be cloned.
-3. `personhood` - for credentials derived from some aspect of a person's humanness, like their irises. 
+3. `personhood` - for credentials derived from the Orb. 
 
 ```swift
 import IDKit
@@ -102,7 +108,13 @@ for try await status in session.status() {
 }
 ```
 
-Like adopting any SDK, we recommend considering the ideal location within your user experience and apps's architecture for each step. 
+Note: If `personhood` is requested along with `document` or `secure_document`, a proof of `personhood` will only be returned if the user also has `document` or `secure_document` credentials. Else, the user will be prompted to verify themselves using a `document` or `secure_document` credential first.
+
+### Proof of Age of 18+ Years
+
+The World App only accepts `document` or `secure_document` verifications if the user is 18+ as determined from the user's date of birth stored on the NFC chip of the document. Therefore, you can request proof of verification using these two categories as proof that user is 18+ years of age.
+
+To do this, use credential categories API with the categories set to `[.document, .secure_document]`.  
 
 <!-- WORLD-ID-SHARED-README-TAG:START - Do not remove or modify this section directly -->
 <!-- The contents of this file are inserted to all World ID repositories to provide general context on World ID. -->
