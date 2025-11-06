@@ -30,8 +30,10 @@ let package = Package(
         ),
         .binaryTarget(
             name: "idkitFFI",
-            url: "<asset_url>",
-            checksum: "<checksum>"
+            // TODO: Update with actual release URL and checksum after first release
+            // This will be populated by the publish-swift.yml workflow in idkit repo
+            url: "https://github.com/worldcoin/idkit-swift/releases/download/0.0.0-placeholder/IDKitFFI.xcframework.zip",
+            checksum: "0000000000000000000000000000000000000000000000000000000000000000"
         )
     ]
 )
