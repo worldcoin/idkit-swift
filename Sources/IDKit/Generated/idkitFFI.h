@@ -396,9 +396,9 @@ void*_Nonnull uniffi_idkit_fn_constructor_session_from_verification_level(RustBu
 RustBuffer uniffi_idkit_fn_method_session_connect_url(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_SESSION_POLL
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_SESSION_POLL
-RustBuffer uniffi_idkit_fn_method_session_poll(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_SESSION_POLL_FOR_STATUS
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_SESSION_POLL_FOR_STATUS
+RustBuffer uniffi_idkit_fn_method_session_poll_for_status(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_SESSION_REQUEST_ID
@@ -807,9 +807,9 @@ uint16_t uniffi_idkit_checksum_method_session_connect_url(void
     
 );
 #endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_SESSION_POLL
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_SESSION_POLL
-uint16_t uniffi_idkit_checksum_method_session_poll(void
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_SESSION_POLL_FOR_STATUS
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_SESSION_POLL_FOR_STATUS
+uint16_t uniffi_idkit_checksum_method_session_poll_for_status(void
     
 );
 #endif

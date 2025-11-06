@@ -1142,11 +1142,10 @@ public protocol SessionProtocol : AnyObject {
     /**
      * Polls the bridge for the current status (non-blocking)
      *
-     * # Errors
-     *
-     * Returns an error if the request fails or the response is invalid
+     * Mirrors the `idkit-rs` `poll_for_status` helper so higher-level SDKs can
+     * stream updates by repeatedly invoking this method.
      */
-    func poll() throws  -> Status
+    func pollForStatus() throws  -> Status
     
     /**
      * Returns the request ID for this session
@@ -1314,13 +1313,12 @@ open func connectUrl() -> String {
     /**
      * Polls the bridge for the current status (non-blocking)
      *
-     * # Errors
-     *
-     * Returns an error if the request fails or the response is invalid
+     * Mirrors the `idkit-rs` `poll_for_status` helper so higher-level SDKs can
+     * stream updates by repeatedly invoking this method.
      */
-open func poll()throws  -> Status {
+open func pollForStatus()throws  -> Status {
     return try  FfiConverterTypeStatus.lift(try rustCallWithError(FfiConverterTypeIdkitError.lift) {
-    uniffi_idkit_fn_method_session_poll(self.uniffiClonePointer(),$0
+    uniffi_idkit_fn_method_session_poll_for_status(self.uniffiClonePointer(),$0
     )
 })
 }
@@ -2161,7 +2159,7 @@ private var initializationResult: InitializationResult = {
     if (uniffi_idkit_checksum_method_session_connect_url() != 12307) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_method_session_poll() != 5221) {
+    if (uniffi_idkit_checksum_method_session_poll_for_status() != 27783) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_idkit_checksum_method_session_request_id() != 24304) {
