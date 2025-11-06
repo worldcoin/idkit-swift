@@ -1,32 +1,38 @@
-// swift-tools-version: 5.8
+// swift-tools-version: 5.10
+// The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
 
 let package = Package(
-	name: "idkit-swift",
-	platforms: [.macOS(.v13), .iOS(.v15), .watchOS(.v8), .tvOS(.v15)],
-	products: [
-		.library(name: "IDKit", targets: ["IDKit"]),
-	],
-	dependencies: [
-		.package(url: "https://github.com/attaswift/BigInt.git", from: "5.3.0"),
-        .package(url: "https://github.com/krzyzanowskim/CryptoSwift.git", from: "1.9.0"),
-		.package(url: "https://github.com/apple/swift-crypto.git", "1.0.0"..<"4.0.0"),
-	],
-	targets: [
-		.target(
-			name: "IDKit",
-			dependencies: [
-                .product(name: "BigInt", package: "BigInt"),
-                .product(name: "Crypto", package: "swift-crypto"),
-				.product(name: "CryptoSwift", package: "CryptoSwift"),
-			],
-			path: "./Sources/IDKit",
-			swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
-		),
-        .testTarget(
-            name: "IDKitTests",
-            dependencies: ["IDKit"]
+    name: "IDKit",
+    platforms: [
+        .iOS(.v15),
+        .macOS(.v12)
+    ],
+    products: [
+        .library(
+            name: "IDKit",
+            targets: ["IDKit", "idkitFFI"]
         )
-	]
+    ],
+    dependencies: [],
+    targets: [
+        .target(
+            name: "IDKit",
+            dependencies: ["idkitFFI"],
+            path: "Sources/IDKit",
+            exclude: [
+                "Generated/idkitFFI.h",
+                "Generated/idkitFFI.modulemap",
+                "Generated/idkit_coreFFI.h",
+                "Generated/idkit_coreFFI.modulemap"
+            ]
+        ),
+        .binaryTarget(
+            name: "idkitFFI",
+            url: "<asset_url>",
+            checksum: "<checksum>"
+        )
+    ]
 )
+// Release version: <version>

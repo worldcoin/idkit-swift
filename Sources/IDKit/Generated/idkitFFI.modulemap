@@ -1,0 +1,4 @@
+module idkitFFI {
+    header "idkitFFI.h"
+    export *
+}
