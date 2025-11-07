@@ -10,7 +10,7 @@ public extension Request {
         let signalObject = signal.map { Signal.fromString(s: $0) }
         let base = Request(credentialType: credentialType, signal: signalObject)
         let final = faceAuth.map { base.withFaceAuth(faceAuth: $0) } ?? base
-        self.init(unsafeFromRawPointer: final.uniffiClonePointer())
+        self.init(unsafeFromHandle: final.uniffiCloneHandle())
     }
 
     /// Mirrors the IDKit v2 Swift initializer that accepted raw ABI-encoded bytes.
@@ -22,7 +22,7 @@ public extension Request {
         let signalObject = Signal.fromAbiEncoded(bytes: abiEncodedSignal)
         let base = Request(credentialType: credentialType, signal: signalObject)
         let final = faceAuth.map { base.withFaceAuth(faceAuth: $0) } ?? base
-        self.init(unsafeFromRawPointer: final.uniffiClonePointer())
+        self.init(unsafeFromHandle: final.uniffiCloneHandle())
     }
 }
 

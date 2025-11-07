@@ -281,7 +281,7 @@ private func makeRustCall<T, E: Swift.Error>(
     _ callback: (UnsafeMutablePointer<RustCallStatus>) -> T,
     errorHandler: ((RustBuffer) throws -> E)?
 ) throws -> T {
-    uniffiEnsureInitialized()
+    uniffiEnsureIdkitInitialized()
     var callStatus = RustCallStatus.init()
     let returnedVal = callback(&callStatus)
     try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: errorHandler)
@@ -352,18 +352,29 @@ private func uniffiTraitInterfaceCallWithError<T, E>(
         callStatus.pointee.errorBuf = FfiConverterString.lower(String(describing: error))
     }
 }
-fileprivate class UniffiHandleMap<T> {
-    private var map: [UInt64: T] = [:]
+// Initial value and increment amount for handles. 
+// These ensure that SWIFT handles always have the lowest bit set
+fileprivate let UNIFFI_HANDLEMAP_INITIAL: UInt64 = 1
+fileprivate let UNIFFI_HANDLEMAP_DELTA: UInt64 = 2
+
+fileprivate final class UniffiHandleMap<T>: @unchecked Sendable {
+    // All mutation happens with this lock held, which is why we implement @unchecked Sendable.
     private let lock = NSLock()
-    private var currentHandle: UInt64 = 1
+    private var map: [UInt64: T] = [:]
+    private var currentHandle: UInt64 = UNIFFI_HANDLEMAP_INITIAL
 
     func insert(obj: T) -> UInt64 {
         lock.withLock {
-            let handle = currentHandle
-            currentHandle += 1
-            map[handle] = obj
-            return handle
+            return doInsert(obj)
         }
+    }
+
+    // Low-level insert function, this assumes `lock` is held.
+    private func doInsert(_ obj: T) -> UInt64 {
+        let handle = currentHandle
+        currentHandle += UNIFFI_HANDLEMAP_DELTA
+        map[handle] = obj
+        return handle
     }
 
      func get(handle: UInt64) throws -> T {
@@ -372,6 +383,15 @@ fileprivate class UniffiHandleMap<T> {
                 throw UniffiInternalError.unexpectedStaleHandle
             }
             return obj
+        }
+    }
+
+     func clone(handle: UInt64) throws -> UInt64 {
+        try lock.withLock {
+            guard let obj = map[handle] else {
+                throw UniffiInternalError.unexpectedStaleHandle
+            }
+            return doInsert(obj)
         }
     }
 
@@ -503,7 +523,7 @@ fileprivate struct FfiConverterData: FfiConverterRustBuffer {
  *
  * Represents a node in a constraint tree (Credential, Any, or All).
  */
-public protocol ConstraintNodeProtocol : AnyObject {
+public protocol ConstraintNodeProtocol: AnyObject, Sendable {
     
     /**
      * Serializes a constraint node to JSON
@@ -515,57 +535,54 @@ public protocol ConstraintNodeProtocol : AnyObject {
     func toJson() throws  -> String
     
 }
-
 /**
  * Constraint node for `UniFFI`
  *
  * Represents a node in a constraint tree (Credential, Any, or All).
  */
-open class ConstraintNode:
-    ConstraintNodeProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer!
+open class ConstraintNode: ConstraintNodeProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
 
-    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
 #if swift(>=5.8)
     @_documentation(visibility: private)
 #endif
-    public struct NoPointer {
+    public struct NoHandle {
         public init() {}
     }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
-        self.pointer = pointer
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
     }
 
     // This constructor can be used to instantiate a fake object.
-    // - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
     //
     // - Warning:
-    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
 #if swift(>=5.8)
     @_documentation(visibility: private)
 #endif
-    public init(noPointer: NoPointer) {
-        self.pointer = nil
+    public init(noHandle: NoHandle) {
+        self.handle = 0
     }
 
 #if swift(>=5.8)
     @_documentation(visibility: private)
 #endif
-    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
-        return try! rustCall { uniffi_idkit_fn_clone_constraintnode(self.pointer, $0) }
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_idkit_fn_clone_constraintnode(self.handle, $0) }
     }
     // No primary constructor declared for this class.
 
     deinit {
-        guard let pointer = pointer else {
-            return
-        }
-
-        try! rustCall { uniffi_idkit_fn_free_constraintnode(pointer, $0) }
+        try! rustCall { uniffi_idkit_fn_free_constraintnode(handle, $0) }
     }
 
     
@@ -574,8 +591,8 @@ open class ConstraintNode:
      *
      * All child constraints must be satisfied.
      */
-public static func all(nodes: [ConstraintNode]) -> ConstraintNode {
-    return try!  FfiConverterTypeConstraintNode.lift(try! rustCall() {
+public static func all(nodes: [ConstraintNode]) -> ConstraintNode  {
+    return try!  FfiConverterTypeConstraintNode_lift(try! rustCall() {
     uniffi_idkit_fn_constructor_constraintnode_all(
         FfiConverterSequenceTypeConstraintNode.lower(nodes),$0
     )
@@ -588,8 +605,8 @@ public static func all(nodes: [ConstraintNode]) -> ConstraintNode {
      * At least one of the child constraints must be satisfied.
      * Order matters: earlier constraints have higher priority.
      */
-public static func any(nodes: [ConstraintNode]) -> ConstraintNode {
-    return try!  FfiConverterTypeConstraintNode.lift(try! rustCall() {
+public static func any(nodes: [ConstraintNode]) -> ConstraintNode  {
+    return try!  FfiConverterTypeConstraintNode_lift(try! rustCall() {
     uniffi_idkit_fn_constructor_constraintnode_any(
         FfiConverterSequenceTypeConstraintNode.lower(nodes),$0
     )
@@ -599,8 +616,8 @@ public static func any(nodes: [ConstraintNode]) -> ConstraintNode {
     /**
      * Creates a credential constraint node
      */
-public static func credential(credentialType: CredentialType) -> ConstraintNode {
-    return try!  FfiConverterTypeConstraintNode.lift(try! rustCall() {
+public static func credential(credentialType: CredentialType) -> ConstraintNode  {
+    return try!  FfiConverterTypeConstraintNode_lift(try! rustCall() {
     uniffi_idkit_fn_constructor_constraintnode_credential(
         FfiConverterTypeCredentialType_lower(credentialType),$0
     )
@@ -614,8 +631,8 @@ public static func credential(credentialType: CredentialType) -> ConstraintNode 
      *
      * Returns an error if JSON deserialization fails
      */
-public static func fromJson(json: String)throws  -> ConstraintNode {
-    return try  FfiConverterTypeConstraintNode.lift(try rustCallWithError(FfiConverterTypeIdkitError.lift) {
+public static func fromJson(json: String)throws  -> ConstraintNode  {
+    return try  FfiConverterTypeConstraintNode_lift(try rustCallWithError(FfiConverterTypeIdkitError_lift) {
     uniffi_idkit_fn_constructor_constraintnode_from_json(
         FfiConverterString.lower(json),$0
     )
@@ -631,66 +648,60 @@ public static func fromJson(json: String)throws  -> ConstraintNode {
      *
      * Returns an error if JSON serialization fails
      */
-open func toJson()throws  -> String {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeIdkitError.lift) {
-    uniffi_idkit_fn_method_constraintnode_to_json(self.uniffiClonePointer(),$0
+open func toJson()throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeIdkitError_lift) {
+    uniffi_idkit_fn_method_constraintnode_to_json(
+            self.uniffiCloneHandle(),$0
     )
 })
 }
     
 
+    
 }
+
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
 public struct FfiConverterTypeConstraintNode: FfiConverter {
-
-    typealias FfiType = UnsafeMutableRawPointer
+    typealias FfiType = UInt64
     typealias SwiftType = ConstraintNode
 
-    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> ConstraintNode {
-        return ConstraintNode(unsafeFromRawPointer: pointer)
+    public static func lift(_ handle: UInt64) throws -> ConstraintNode {
+        return ConstraintNode(unsafeFromHandle: handle)
     }
 
-    public static func lower(_ value: ConstraintNode) -> UnsafeMutableRawPointer {
-        return value.uniffiClonePointer()
+    public static func lower(_ value: ConstraintNode) -> UInt64 {
+        return value.uniffiCloneHandle()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ConstraintNode {
-        let v: UInt64 = try readInt(&buf)
-        // The Rust code won't compile if a pointer won't fit in a UInt64.
-        // We have to go via `UInt` because that's the thing that's the size of a pointer.
-        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
-        if (ptr == nil) {
-            throw UniffiInternalError.unexpectedNullPointer
-        }
-        return try lift(ptr!)
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
     }
 
     public static func write(_ value: ConstraintNode, into buf: inout [UInt8]) {
-        // This fiddling is because `Int` is the thing that's the same size as a pointer.
-        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
-        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+        writeInt(&buf, lower(value))
     }
 }
 
 
-
-
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeConstraintNode_lift(_ pointer: UnsafeMutableRawPointer) throws -> ConstraintNode {
-    return try FfiConverterTypeConstraintNode.lift(pointer)
+public func FfiConverterTypeConstraintNode_lift(_ handle: UInt64) throws -> ConstraintNode {
+    return try FfiConverterTypeConstraintNode.lift(handle)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeConstraintNode_lower(_ value: ConstraintNode) -> UnsafeMutableRawPointer {
+public func FfiConverterTypeConstraintNode_lower(_ value: ConstraintNode) -> UInt64 {
     return FfiConverterTypeConstraintNode.lower(value)
 }
+
+
 
 
 
@@ -700,7 +711,7 @@ public func FfiConverterTypeConstraintNode_lower(_ value: ConstraintNode) -> Uns
  *
  * Represents the top-level constraints for a session.
  */
-public protocol ConstraintsProtocol : AnyObject {
+public protocol ConstraintsProtocol: AnyObject, Sendable {
     
     /**
      * Serializes constraints to JSON
@@ -712,76 +723,73 @@ public protocol ConstraintsProtocol : AnyObject {
     func toJson() throws  -> String
     
 }
-
 /**
  * Constraints wrapper for `UniFFI`
  *
  * Represents the top-level constraints for a session.
  */
-open class Constraints:
-    ConstraintsProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer!
+open class Constraints: ConstraintsProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
 
-    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
 #if swift(>=5.8)
     @_documentation(visibility: private)
 #endif
-    public struct NoPointer {
+    public struct NoHandle {
         public init() {}
     }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
-        self.pointer = pointer
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
     }
 
     // This constructor can be used to instantiate a fake object.
-    // - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
     //
     // - Warning:
-    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
 #if swift(>=5.8)
     @_documentation(visibility: private)
 #endif
-    public init(noPointer: NoPointer) {
-        self.pointer = nil
+    public init(noHandle: NoHandle) {
+        self.handle = 0
     }
 
 #if swift(>=5.8)
     @_documentation(visibility: private)
 #endif
-    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
-        return try! rustCall { uniffi_idkit_fn_clone_constraints(self.pointer, $0) }
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_idkit_fn_clone_constraints(self.handle, $0) }
     }
     /**
      * Creates constraints from a root node
      */
 public convenience init(root: ConstraintNode) {
-    let pointer =
+    let handle =
         try! rustCall() {
     uniffi_idkit_fn_constructor_constraints_new(
-        FfiConverterTypeConstraintNode.lower(root),$0
+        FfiConverterTypeConstraintNode_lower(root),$0
     )
 }
-    self.init(unsafeFromRawPointer: pointer)
+    self.init(unsafeFromHandle: handle)
 }
 
     deinit {
-        guard let pointer = pointer else {
-            return
-        }
-
-        try! rustCall { uniffi_idkit_fn_free_constraints(pointer, $0) }
+        try! rustCall { uniffi_idkit_fn_free_constraints(handle, $0) }
     }
 
     
     /**
      * Creates an "all" constraint (all credentials must match)
      */
-public static func all(credentials: [CredentialType]) -> Constraints {
-    return try!  FfiConverterTypeConstraints.lift(try! rustCall() {
+public static func all(credentials: [CredentialType]) -> Constraints  {
+    return try!  FfiConverterTypeConstraints_lift(try! rustCall() {
     uniffi_idkit_fn_constructor_constraints_all(
         FfiConverterSequenceTypeCredentialType.lower(credentials),$0
     )
@@ -791,8 +799,8 @@ public static func all(credentials: [CredentialType]) -> Constraints {
     /**
      * Creates an "any" constraint (at least one credential must match)
      */
-public static func any(credentials: [CredentialType]) -> Constraints {
-    return try!  FfiConverterTypeConstraints.lift(try! rustCall() {
+public static func any(credentials: [CredentialType]) -> Constraints  {
+    return try!  FfiConverterTypeConstraints_lift(try! rustCall() {
     uniffi_idkit_fn_constructor_constraints_any(
         FfiConverterSequenceTypeCredentialType.lower(credentials),$0
     )
@@ -806,8 +814,8 @@ public static func any(credentials: [CredentialType]) -> Constraints {
      *
      * Returns an error if JSON deserialization fails
      */
-public static func fromJson(json: String)throws  -> Constraints {
-    return try  FfiConverterTypeConstraints.lift(try rustCallWithError(FfiConverterTypeIdkitError.lift) {
+public static func fromJson(json: String)throws  -> Constraints  {
+    return try  FfiConverterTypeConstraints_lift(try rustCallWithError(FfiConverterTypeIdkitError_lift) {
     uniffi_idkit_fn_constructor_constraints_from_json(
         FfiConverterString.lower(json),$0
     )
@@ -823,66 +831,60 @@ public static func fromJson(json: String)throws  -> Constraints {
      *
      * Returns an error if JSON serialization fails
      */
-open func toJson()throws  -> String {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeIdkitError.lift) {
-    uniffi_idkit_fn_method_constraints_to_json(self.uniffiClonePointer(),$0
+open func toJson()throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeIdkitError_lift) {
+    uniffi_idkit_fn_method_constraints_to_json(
+            self.uniffiCloneHandle(),$0
     )
 })
 }
     
 
+    
 }
+
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
 public struct FfiConverterTypeConstraints: FfiConverter {
-
-    typealias FfiType = UnsafeMutableRawPointer
+    typealias FfiType = UInt64
     typealias SwiftType = Constraints
 
-    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> Constraints {
-        return Constraints(unsafeFromRawPointer: pointer)
+    public static func lift(_ handle: UInt64) throws -> Constraints {
+        return Constraints(unsafeFromHandle: handle)
     }
 
-    public static func lower(_ value: Constraints) -> UnsafeMutableRawPointer {
-        return value.uniffiClonePointer()
+    public static func lower(_ value: Constraints) -> UInt64 {
+        return value.uniffiCloneHandle()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Constraints {
-        let v: UInt64 = try readInt(&buf)
-        // The Rust code won't compile if a pointer won't fit in a UInt64.
-        // We have to go via `UInt` because that's the thing that's the size of a pointer.
-        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
-        if (ptr == nil) {
-            throw UniffiInternalError.unexpectedNullPointer
-        }
-        return try lift(ptr!)
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
     }
 
     public static func write(_ value: Constraints, into buf: inout [UInt8]) {
-        // This fiddling is because `Int` is the thing that's the same size as a pointer.
-        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
-        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+        writeInt(&buf, lower(value))
     }
 }
 
 
-
-
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeConstraints_lift(_ pointer: UnsafeMutableRawPointer) throws -> Constraints {
-    return try FfiConverterTypeConstraints.lift(pointer)
+public func FfiConverterTypeConstraints_lift(_ handle: UInt64) throws -> Constraints {
+    return try FfiConverterTypeConstraints.lift(handle)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeConstraints_lower(_ value: Constraints) -> UnsafeMutableRawPointer {
+public func FfiConverterTypeConstraints_lower(_ value: Constraints) -> UInt64 {
     return FfiConverterTypeConstraints.lower(value)
 }
+
+
 
 
 
@@ -892,7 +894,7 @@ public func FfiConverterTypeConstraints_lower(_ value: Constraints) -> UnsafeMut
  *
  * This wraps the core `Request` type to work around `UniFFI` limitations with custom types.
  */
-public protocol RequestProtocol : AnyObject {
+public protocol RequestProtocol: AnyObject, Sendable {
     
     /**
      * Gets the credential type
@@ -926,48 +928,49 @@ public protocol RequestProtocol : AnyObject {
     func withFaceAuth(faceAuth: Bool)  -> Request
     
 }
-
 /**
  * Opaque request handle for `UniFFI`
  *
  * This wraps the core `Request` type to work around `UniFFI` limitations with custom types.
  */
-open class Request:
-    RequestProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer!
+open class Request: RequestProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
 
-    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
 #if swift(>=5.8)
     @_documentation(visibility: private)
 #endif
-    public struct NoPointer {
+    public struct NoHandle {
         public init() {}
     }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
-        self.pointer = pointer
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
     }
 
     // This constructor can be used to instantiate a fake object.
-    // - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
     //
     // - Warning:
-    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
 #if swift(>=5.8)
     @_documentation(visibility: private)
 #endif
-    public init(noPointer: NoPointer) {
-        self.pointer = nil
+    public init(noHandle: NoHandle) {
+        self.handle = 0
     }
 
 #if swift(>=5.8)
     @_documentation(visibility: private)
 #endif
-    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
-        return try! rustCall { uniffi_idkit_fn_clone_request(self.pointer, $0) }
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_idkit_fn_clone_request(self.handle, $0) }
     }
     /**
      * Creates a new credential request
@@ -977,22 +980,18 @@ open class Request:
      * * `signal` - Optional signal for the proof. Use `Signal::from_string()` or `Signal::from_abi_encoded()`
      */
 public convenience init(credentialType: CredentialType, signal: Signal?) {
-    let pointer =
+    let handle =
         try! rustCall() {
     uniffi_idkit_fn_constructor_request_new(
         FfiConverterTypeCredentialType_lower(credentialType),
         FfiConverterOptionTypeSignal.lower(signal),$0
     )
 }
-    self.init(unsafeFromRawPointer: pointer)
+    self.init(unsafeFromHandle: handle)
 }
 
     deinit {
-        guard let pointer = pointer else {
-            return
-        }
-
-        try! rustCall { uniffi_idkit_fn_free_request(pointer, $0) }
+        try! rustCall { uniffi_idkit_fn_free_request(handle, $0) }
     }
 
     
@@ -1003,8 +1002,8 @@ public convenience init(credentialType: CredentialType, signal: Signal?) {
      *
      * Returns an error if JSON deserialization fails
      */
-public static func fromJson(json: String)throws  -> Request {
-    return try  FfiConverterTypeRequest.lift(try rustCallWithError(FfiConverterTypeIdkitError.lift) {
+public static func fromJson(json: String)throws  -> Request  {
+    return try  FfiConverterTypeRequest_lift(try rustCallWithError(FfiConverterTypeIdkitError_lift) {
     uniffi_idkit_fn_constructor_request_from_json(
         FfiConverterString.lower(json),$0
     )
@@ -1016,9 +1015,10 @@ public static func fromJson(json: String)throws  -> Request {
     /**
      * Gets the credential type
      */
-open func credentialType() -> CredentialType {
+open func credentialType() -> CredentialType  {
     return try!  FfiConverterTypeCredentialType_lift(try! rustCall() {
-    uniffi_idkit_fn_method_request_credential_type(self.uniffiClonePointer(),$0
+    uniffi_idkit_fn_method_request_credential_type(
+            self.uniffiCloneHandle(),$0
     )
 })
 }
@@ -1026,9 +1026,10 @@ open func credentialType() -> CredentialType {
     /**
      * Gets the `face_auth` setting
      */
-open func faceAuth() -> Bool? {
+open func faceAuth() -> Bool?  {
     return try!  FfiConverterOptionBool.lift(try! rustCall() {
-    uniffi_idkit_fn_method_request_face_auth(self.uniffiClonePointer(),$0
+    uniffi_idkit_fn_method_request_face_auth(
+            self.uniffiCloneHandle(),$0
     )
 })
 }
@@ -1036,9 +1037,10 @@ open func faceAuth() -> Bool? {
     /**
      * Gets the signal as raw bytes from a request
      */
-open func getSignalBytes() -> Data? {
+open func getSignalBytes() -> Data?  {
     return try!  FfiConverterOptionData.lift(try! rustCall() {
-    uniffi_idkit_fn_method_request_get_signal_bytes(self.uniffiClonePointer(),$0
+    uniffi_idkit_fn_method_request_get_signal_bytes(
+            self.uniffiCloneHandle(),$0
     )
 })
 }
@@ -1050,9 +1052,10 @@ open func getSignalBytes() -> Data? {
      *
      * Returns an error if JSON serialization fails
      */
-open func toJson()throws  -> String {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeIdkitError.lift) {
-    uniffi_idkit_fn_method_request_to_json(self.uniffiClonePointer(),$0
+open func toJson()throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeIdkitError_lift) {
+    uniffi_idkit_fn_method_request_to_json(
+            self.uniffiCloneHandle(),$0
     )
 })
 }
@@ -1062,67 +1065,61 @@ open func toJson()throws  -> String {
      *
      * Returns a new request with the face auth set
      */
-open func withFaceAuth(faceAuth: Bool) -> Request {
-    return try!  FfiConverterTypeRequest.lift(try! rustCall() {
-    uniffi_idkit_fn_method_request_with_face_auth(self.uniffiClonePointer(),
+open func withFaceAuth(faceAuth: Bool) -> Request  {
+    return try!  FfiConverterTypeRequest_lift(try! rustCall() {
+    uniffi_idkit_fn_method_request_with_face_auth(
+            self.uniffiCloneHandle(),
         FfiConverterBool.lower(faceAuth),$0
     )
 })
 }
     
 
+    
 }
+
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
 public struct FfiConverterTypeRequest: FfiConverter {
-
-    typealias FfiType = UnsafeMutableRawPointer
+    typealias FfiType = UInt64
     typealias SwiftType = Request
 
-    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> Request {
-        return Request(unsafeFromRawPointer: pointer)
+    public static func lift(_ handle: UInt64) throws -> Request {
+        return Request(unsafeFromHandle: handle)
     }
 
-    public static func lower(_ value: Request) -> UnsafeMutableRawPointer {
-        return value.uniffiClonePointer()
+    public static func lower(_ value: Request) -> UInt64 {
+        return value.uniffiCloneHandle()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Request {
-        let v: UInt64 = try readInt(&buf)
-        // The Rust code won't compile if a pointer won't fit in a UInt64.
-        // We have to go via `UInt` because that's the thing that's the size of a pointer.
-        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
-        if (ptr == nil) {
-            throw UniffiInternalError.unexpectedNullPointer
-        }
-        return try lift(ptr!)
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
     }
 
     public static func write(_ value: Request, into buf: inout [UInt8]) {
-        // This fiddling is because `Int` is the thing that's the same size as a pointer.
-        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
-        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+        writeInt(&buf, lower(value))
     }
 }
 
 
-
-
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeRequest_lift(_ pointer: UnsafeMutableRawPointer) throws -> Request {
-    return try FfiConverterTypeRequest.lift(pointer)
+public func FfiConverterTypeRequest_lift(_ handle: UInt64) throws -> Request {
+    return try FfiConverterTypeRequest.lift(handle)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeRequest_lower(_ value: Request) -> UnsafeMutableRawPointer {
+public func FfiConverterTypeRequest_lower(_ value: Request) -> UInt64 {
     return FfiConverterTypeRequest.lower(value)
 }
+
+
 
 
 
@@ -1132,7 +1129,7 @@ public func FfiConverterTypeRequest_lower(_ value: Request) -> UnsafeMutableRawP
  *
  * Manages a World ID verification session.
  */
-public protocol SessionProtocol : AnyObject {
+public protocol SessionProtocol: AnyObject, Sendable {
     
     /**
      * Returns the connect URL for World App
@@ -1144,6 +1141,10 @@ public protocol SessionProtocol : AnyObject {
      *
      * Mirrors the `idkit-rs` `poll_for_status` helper so higher-level SDKs can
      * stream updates by repeatedly invoking this method.
+     *
+     * # Errors
+     *
+     * Returns an error if the request fails or the response is invalid
      */
     func pollForStatus() throws  -> Status
     
@@ -1155,6 +1156,9 @@ public protocol SessionProtocol : AnyObject {
     /**
      * Waits for a proof with default timeout (15 minutes)
      *
+     * This is a blocking convenience method that polls the bridge until completion.
+     * For async Rust code, use `poll_for_status()` in a loop instead.
+     *
      * # Errors
      *
      * Returns an error if polling fails, verification fails, or timeout is reached
@@ -1164,6 +1168,9 @@ public protocol SessionProtocol : AnyObject {
     /**
      * Waits for a proof with a specific timeout (in seconds)
      *
+     * This is a blocking convenience method that polls the bridge until completion.
+     * For async Rust code, use `poll_for_status()` in a loop instead.
+     *
      * # Errors
      *
      * Returns an error if polling fails, verification fails, or timeout is reached
@@ -1171,57 +1178,54 @@ public protocol SessionProtocol : AnyObject {
     func waitForProofWithTimeout(timeoutSeconds: UInt64) throws  -> Proof
     
 }
-
 /**
  * Session wrapper for `UniFFI`
  *
  * Manages a World ID verification session.
  */
-open class Session:
-    SessionProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer!
+open class Session: SessionProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
 
-    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
 #if swift(>=5.8)
     @_documentation(visibility: private)
 #endif
-    public struct NoPointer {
+    public struct NoHandle {
         public init() {}
     }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
-        self.pointer = pointer
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
     }
 
     // This constructor can be used to instantiate a fake object.
-    // - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
     //
     // - Warning:
-    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
 #if swift(>=5.8)
     @_documentation(visibility: private)
 #endif
-    public init(noPointer: NoPointer) {
-        self.pointer = nil
+    public init(noHandle: NoHandle) {
+        self.handle = 0
     }
 
 #if swift(>=5.8)
     @_documentation(visibility: private)
 #endif
-    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
-        return try! rustCall { uniffi_idkit_fn_clone_session(self.pointer, $0) }
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_idkit_fn_clone_session(self.handle, $0) }
     }
     // No primary constructor declared for this class.
 
     deinit {
-        guard let pointer = pointer else {
-            return
-        }
-
-        try! rustCall { uniffi_idkit_fn_free_session(pointer, $0) }
+        try! rustCall { uniffi_idkit_fn_free_session(handle, $0) }
     }
 
     
@@ -1238,8 +1242,8 @@ open class Session:
      *
      * Returns an error if the session cannot be created or the request fails
      */
-public static func create(appId: String, action: String, requests: [Request])throws  -> Session {
-    return try  FfiConverterTypeSession.lift(try rustCallWithError(FfiConverterTypeIdkitError.lift) {
+public static func create(appId: String, action: String, requests: [Request])throws  -> Session  {
+    return try  FfiConverterTypeSession_lift(try rustCallWithError(FfiConverterTypeIdkitError_lift) {
     uniffi_idkit_fn_constructor_session_create(
         FfiConverterString.lower(appId),
         FfiConverterString.lower(action),
@@ -1264,8 +1268,8 @@ public static func create(appId: String, action: String, requests: [Request])thr
      *
      * Returns an error if the session cannot be created or the request fails
      */
-public static func createWithOptions(appId: String, action: String, requests: [Request], actionDescription: String?, constraints: Constraints?, bridgeUrl: String?)throws  -> Session {
-    return try  FfiConverterTypeSession.lift(try rustCallWithError(FfiConverterTypeIdkitError.lift) {
+public static func createWithOptions(appId: String, action: String, requests: [Request], actionDescription: String?, constraints: Constraints?, bridgeUrl: String?)throws  -> Session  {
+    return try  FfiConverterTypeSession_lift(try rustCallWithError(FfiConverterTypeIdkitError_lift) {
     uniffi_idkit_fn_constructor_session_create_with_options(
         FfiConverterString.lower(appId),
         FfiConverterString.lower(action),
@@ -1287,8 +1291,8 @@ public static func createWithOptions(appId: String, action: String, requests: [R
      *
      * Returns an error if the session cannot be created or the request fails
      */
-public static func fromVerificationLevel(appId: String, action: String, verificationLevel: VerificationLevel, signal: String)throws  -> Session {
-    return try  FfiConverterTypeSession.lift(try rustCallWithError(FfiConverterTypeIdkitError.lift) {
+public static func fromVerificationLevel(appId: String, action: String, verificationLevel: VerificationLevel, signal: String)throws  -> Session  {
+    return try  FfiConverterTypeSession_lift(try rustCallWithError(FfiConverterTypeIdkitError_lift) {
     uniffi_idkit_fn_constructor_session_from_verification_level(
         FfiConverterString.lower(appId),
         FfiConverterString.lower(action),
@@ -1303,9 +1307,10 @@ public static func fromVerificationLevel(appId: String, action: String, verifica
     /**
      * Returns the connect URL for World App
      */
-open func connectUrl() -> String {
+open func connectUrl() -> String  {
     return try!  FfiConverterString.lift(try! rustCall() {
-    uniffi_idkit_fn_method_session_connect_url(self.uniffiClonePointer(),$0
+    uniffi_idkit_fn_method_session_connect_url(
+            self.uniffiCloneHandle(),$0
     )
 })
 }
@@ -1315,10 +1320,15 @@ open func connectUrl() -> String {
      *
      * Mirrors the `idkit-rs` `poll_for_status` helper so higher-level SDKs can
      * stream updates by repeatedly invoking this method.
+     *
+     * # Errors
+     *
+     * Returns an error if the request fails or the response is invalid
      */
-open func pollForStatus()throws  -> Status {
-    return try  FfiConverterTypeStatus.lift(try rustCallWithError(FfiConverterTypeIdkitError.lift) {
-    uniffi_idkit_fn_method_session_poll_for_status(self.uniffiClonePointer(),$0
+open func pollForStatus()throws  -> Status  {
+    return try  FfiConverterTypeStatus_lift(try rustCallWithError(FfiConverterTypeIdkitError_lift) {
+    uniffi_idkit_fn_method_session_poll_for_status(
+            self.uniffiCloneHandle(),$0
     )
 })
 }
@@ -1326,9 +1336,10 @@ open func pollForStatus()throws  -> Status {
     /**
      * Returns the request ID for this session
      */
-open func requestId() -> String {
+open func requestId() -> String  {
     return try!  FfiConverterString.lift(try! rustCall() {
-    uniffi_idkit_fn_method_session_request_id(self.uniffiClonePointer(),$0
+    uniffi_idkit_fn_method_session_request_id(
+            self.uniffiCloneHandle(),$0
     )
 })
 }
@@ -1336,13 +1347,17 @@ open func requestId() -> String {
     /**
      * Waits for a proof with default timeout (15 minutes)
      *
+     * This is a blocking convenience method that polls the bridge until completion.
+     * For async Rust code, use `poll_for_status()` in a loop instead.
+     *
      * # Errors
      *
      * Returns an error if polling fails, verification fails, or timeout is reached
      */
-open func waitForProof()throws  -> Proof {
-    return try  FfiConverterTypeProof_lift(try rustCallWithError(FfiConverterTypeIdkitError.lift) {
-    uniffi_idkit_fn_method_session_wait_for_proof(self.uniffiClonePointer(),$0
+open func waitForProof()throws  -> Proof  {
+    return try  FfiConverterTypeProof_lift(try rustCallWithError(FfiConverterTypeIdkitError_lift) {
+    uniffi_idkit_fn_method_session_wait_for_proof(
+            self.uniffiCloneHandle(),$0
     )
 })
 }
@@ -1350,71 +1365,68 @@ open func waitForProof()throws  -> Proof {
     /**
      * Waits for a proof with a specific timeout (in seconds)
      *
+     * This is a blocking convenience method that polls the bridge until completion.
+     * For async Rust code, use `poll_for_status()` in a loop instead.
+     *
      * # Errors
      *
      * Returns an error if polling fails, verification fails, or timeout is reached
      */
-open func waitForProofWithTimeout(timeoutSeconds: UInt64)throws  -> Proof {
-    return try  FfiConverterTypeProof_lift(try rustCallWithError(FfiConverterTypeIdkitError.lift) {
-    uniffi_idkit_fn_method_session_wait_for_proof_with_timeout(self.uniffiClonePointer(),
+open func waitForProofWithTimeout(timeoutSeconds: UInt64)throws  -> Proof  {
+    return try  FfiConverterTypeProof_lift(try rustCallWithError(FfiConverterTypeIdkitError_lift) {
+    uniffi_idkit_fn_method_session_wait_for_proof_with_timeout(
+            self.uniffiCloneHandle(),
         FfiConverterUInt64.lower(timeoutSeconds),$0
     )
 })
 }
     
 
+    
 }
+
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
 public struct FfiConverterTypeSession: FfiConverter {
-
-    typealias FfiType = UnsafeMutableRawPointer
+    typealias FfiType = UInt64
     typealias SwiftType = Session
 
-    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> Session {
-        return Session(unsafeFromRawPointer: pointer)
+    public static func lift(_ handle: UInt64) throws -> Session {
+        return Session(unsafeFromHandle: handle)
     }
 
-    public static func lower(_ value: Session) -> UnsafeMutableRawPointer {
-        return value.uniffiClonePointer()
+    public static func lower(_ value: Session) -> UInt64 {
+        return value.uniffiCloneHandle()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Session {
-        let v: UInt64 = try readInt(&buf)
-        // The Rust code won't compile if a pointer won't fit in a UInt64.
-        // We have to go via `UInt` because that's the thing that's the size of a pointer.
-        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
-        if (ptr == nil) {
-            throw UniffiInternalError.unexpectedNullPointer
-        }
-        return try lift(ptr!)
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
     }
 
     public static func write(_ value: Session, into buf: inout [UInt8]) {
-        // This fiddling is because `Int` is the thing that's the same size as a pointer.
-        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
-        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+        writeInt(&buf, lower(value))
     }
 }
 
 
-
-
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSession_lift(_ pointer: UnsafeMutableRawPointer) throws -> Session {
-    return try FfiConverterTypeSession.lift(pointer)
+public func FfiConverterTypeSession_lift(_ handle: UInt64) throws -> Session {
+    return try FfiConverterTypeSession.lift(handle)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSession_lower(_ value: Session) -> UnsafeMutableRawPointer {
+public func FfiConverterTypeSession_lower(_ value: Session) -> UInt64 {
     return FfiConverterTypeSession.lower(value)
 }
+
+
 
 
 
@@ -1424,7 +1436,7 @@ public func FfiConverterTypeSession_lower(_ value: Session) -> UnsafeMutableRawP
  *
  * Represents a signal that can be either a string or ABI-encoded bytes.
  */
-public protocol SignalProtocol : AnyObject {
+public protocol SignalProtocol: AnyObject, Sendable {
     
     /**
      * Gets the signal as raw bytes
@@ -1437,57 +1449,54 @@ public protocol SignalProtocol : AnyObject {
     func asString()  -> String?
     
 }
-
 /**
  * Signal wrapper for `UniFFI`
  *
  * Represents a signal that can be either a string or ABI-encoded bytes.
  */
-open class Signal:
-    SignalProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer!
+open class Signal: SignalProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
 
-    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
 #if swift(>=5.8)
     @_documentation(visibility: private)
 #endif
-    public struct NoPointer {
+    public struct NoHandle {
         public init() {}
     }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
-        self.pointer = pointer
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
     }
 
     // This constructor can be used to instantiate a fake object.
-    // - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
     //
     // - Warning:
-    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
 #if swift(>=5.8)
     @_documentation(visibility: private)
 #endif
-    public init(noPointer: NoPointer) {
-        self.pointer = nil
+    public init(noHandle: NoHandle) {
+        self.handle = 0
     }
 
 #if swift(>=5.8)
     @_documentation(visibility: private)
 #endif
-    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
-        return try! rustCall { uniffi_idkit_fn_clone_signal(self.pointer, $0) }
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_idkit_fn_clone_signal(self.handle, $0) }
     }
     // No primary constructor declared for this class.
 
     deinit {
-        guard let pointer = pointer else {
-            return
-        }
-
-        try! rustCall { uniffi_idkit_fn_free_signal(pointer, $0) }
+        try! rustCall { uniffi_idkit_fn_free_signal(handle, $0) }
     }
 
     
@@ -1497,8 +1506,8 @@ open class Signal:
      * Use this for on-chain use cases where the signal needs to be ABI-encoded
      * according to Solidity encoding rules.
      */
-public static func fromAbiEncoded(bytes: Data) -> Signal {
-    return try!  FfiConverterTypeSignal.lift(try! rustCall() {
+public static func fromAbiEncoded(bytes: Data) -> Signal  {
+    return try!  FfiConverterTypeSignal_lift(try! rustCall() {
     uniffi_idkit_fn_constructor_signal_from_abi_encoded(
         FfiConverterData.lower(bytes),$0
     )
@@ -1508,8 +1517,8 @@ public static func fromAbiEncoded(bytes: Data) -> Signal {
     /**
      * Creates a signal from a string
      */
-public static func fromString(s: String) -> Signal {
-    return try!  FfiConverterTypeSignal.lift(try! rustCall() {
+public static func fromString(s: String) -> Signal  {
+    return try!  FfiConverterTypeSignal_lift(try! rustCall() {
     uniffi_idkit_fn_constructor_signal_from_string(
         FfiConverterString.lower(s),$0
     )
@@ -1521,9 +1530,10 @@ public static func fromString(s: String) -> Signal {
     /**
      * Gets the signal as raw bytes
      */
-open func asBytes() -> Data {
+open func asBytes() -> Data  {
     return try!  FfiConverterData.lift(try! rustCall() {
-    uniffi_idkit_fn_method_signal_as_bytes(self.uniffiClonePointer(),$0
+    uniffi_idkit_fn_method_signal_as_bytes(
+            self.uniffiCloneHandle(),$0
     )
 })
 }
@@ -1531,72 +1541,66 @@ open func asBytes() -> Data {
     /**
      * Gets the signal as a string if it's a UTF-8 string signal
      */
-open func asString() -> String? {
+open func asString() -> String?  {
     return try!  FfiConverterOptionString.lift(try! rustCall() {
-    uniffi_idkit_fn_method_signal_as_string(self.uniffiClonePointer(),$0
+    uniffi_idkit_fn_method_signal_as_string(
+            self.uniffiCloneHandle(),$0
     )
 })
 }
     
 
+    
 }
+
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
 public struct FfiConverterTypeSignal: FfiConverter {
-
-    typealias FfiType = UnsafeMutableRawPointer
+    typealias FfiType = UInt64
     typealias SwiftType = Signal
 
-    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> Signal {
-        return Signal(unsafeFromRawPointer: pointer)
+    public static func lift(_ handle: UInt64) throws -> Signal {
+        return Signal(unsafeFromHandle: handle)
     }
 
-    public static func lower(_ value: Signal) -> UnsafeMutableRawPointer {
-        return value.uniffiClonePointer()
+    public static func lower(_ value: Signal) -> UInt64 {
+        return value.uniffiCloneHandle()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Signal {
-        let v: UInt64 = try readInt(&buf)
-        // The Rust code won't compile if a pointer won't fit in a UInt64.
-        // We have to go via `UInt` because that's the thing that's the size of a pointer.
-        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
-        if (ptr == nil) {
-            throw UniffiInternalError.unexpectedNullPointer
-        }
-        return try lift(ptr!)
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
     }
 
     public static func write(_ value: Signal, into buf: inout [UInt8]) {
-        // This fiddling is because `Int` is the thing that's the same size as a pointer.
-        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
-        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+        writeInt(&buf, lower(value))
     }
 }
 
 
-
-
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSignal_lift(_ pointer: UnsafeMutableRawPointer) throws -> Signal {
-    return try FfiConverterTypeSignal.lift(pointer)
+public func FfiConverterTypeSignal_lift(_ handle: UInt64) throws -> Signal {
+    return try FfiConverterTypeSignal.lift(handle)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSignal_lower(_ value: Signal) -> UnsafeMutableRawPointer {
+public func FfiConverterTypeSignal_lower(_ value: Signal) -> UInt64 {
     return FfiConverterTypeSignal.lower(value)
 }
+
+
 
 
 /**
  * Error type for `UniFFI` bindings
  */
-public enum IdkitError {
+public enum IdkitError: Swift.Error, Equatable, Hashable, Foundation.LocalizedError {
 
     
     
@@ -1652,8 +1656,19 @@ public enum IdkitError {
      * Request timed out
      */
     case Timeout
+
+    
+
+    
+    public var errorDescription: String? {
+        String(reflecting: self)
+    }
+    
 }
 
+#if compiler(>=6)
+extension IdkitError: Sendable {}
+#endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
@@ -1763,12 +1778,18 @@ public struct FfiConverterTypeIdkitError: FfiConverterRustBuffer {
 }
 
 
-extension IdkitError: Equatable, Hashable {}
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeIdkitError_lift(_ buf: RustBuffer) throws -> IdkitError {
+    return try FfiConverterTypeIdkitError.lift(buf)
+}
 
-extension IdkitError: Foundation.LocalizedError {
-    public var errorDescription: String? {
-        String(reflecting: self)
-    }
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeIdkitError_lower(_ value: IdkitError) -> RustBuffer {
+    return FfiConverterTypeIdkitError.lower(value)
 }
 
 // Note that we don't yet support `indirect` for enums.
@@ -1779,7 +1800,7 @@ extension IdkitError: Foundation.LocalizedError {
  * Represents the status of a verification request.
  */
 
-public enum Status {
+public enum Status: Equatable, Hashable {
     
     /**
      * Waiting for World App to retrieve the request
@@ -1799,8 +1820,14 @@ public enum Status {
      */
     case failed(error: String
     )
+
+
+
 }
 
+#if compiler(>=6)
+extension Status: Sendable {}
+#endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
@@ -1865,11 +1892,6 @@ public func FfiConverterTypeStatus_lift(_ buf: RustBuffer) throws -> Status {
 public func FfiConverterTypeStatus_lower(_ value: Status) -> RustBuffer {
     return FfiConverterTypeStatus.lower(value)
 }
-
-
-
-extension Status: Equatable, Hashable {}
-
 
 
 #if swift(>=5.8)
@@ -2066,16 +2088,10 @@ fileprivate struct FfiConverterSequenceTypeCredentialType: FfiConverterRustBuffe
         return seq
     }
 }
-
-
-
-
-
-
 /**
  * Gets the string representation of a credential type
  */
-public func credentialToString(credential: CredentialType) -> String {
+public func credentialToString(credential: CredentialType) -> String  {
     return try!  FfiConverterString.lift(try! rustCall() {
     uniffi_idkit_fn_func_credential_to_string(
         FfiConverterTypeCredentialType_lower(credential),$0
@@ -2089,8 +2105,8 @@ public func credentialToString(credential: CredentialType) -> String {
  *
  * Returns an error if JSON deserialization fails
  */
-public func proofFromJson(json: String)throws  -> Proof {
-    return try  FfiConverterTypeProof_lift(try rustCallWithError(FfiConverterTypeIdkitError.lift) {
+public func proofFromJson(json: String)throws  -> Proof  {
+    return try  FfiConverterTypeProof_lift(try rustCallWithError(FfiConverterTypeIdkitError_lift) {
     uniffi_idkit_fn_func_proof_from_json(
         FfiConverterString.lower(json),$0
     )
@@ -2103,8 +2119,8 @@ public func proofFromJson(json: String)throws  -> Proof {
  *
  * Returns an error if JSON serialization fails
  */
-public func proofToJson(proof: Proof)throws  -> String {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeIdkitError.lift) {
+public func proofToJson(proof: Proof)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeIdkitError_lift) {
     uniffi_idkit_fn_func_proof_to_json(
         FfiConverterTypeProof_lower(proof),$0
     )
@@ -2118,9 +2134,9 @@ private enum InitializationResult {
 }
 // Use a global variable to perform the versioning checks. Swift ensures that
 // the code inside is only computed once.
-private var initializationResult: InitializationResult = {
+private let initializationResult: InitializationResult = {
     // Get the bindings contract version from our ComponentInterface
-    let bindings_contract_version = 26
+    let bindings_contract_version = 30
     // Get the scaffolding contract version by calling the into the dylib
     let scaffolding_contract_version = ffi_idkit_uniffi_contract_version()
     if bindings_contract_version != scaffolding_contract_version {
@@ -2159,16 +2175,16 @@ private var initializationResult: InitializationResult = {
     if (uniffi_idkit_checksum_method_session_connect_url() != 12307) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_method_session_poll_for_status() != 27783) {
+    if (uniffi_idkit_checksum_method_session_poll_for_status() != 46168) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_idkit_checksum_method_session_request_id() != 24304) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_method_session_wait_for_proof() != 53251) {
+    if (uniffi_idkit_checksum_method_session_wait_for_proof() != 46359) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_method_session_wait_for_proof_with_timeout() != 34162) {
+    if (uniffi_idkit_checksum_method_session_wait_for_proof_with_timeout() != 38030) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_idkit_checksum_method_signal_as_bytes() != 58268) {
@@ -2223,10 +2239,13 @@ private var initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
 
+    uniffiEnsureIdkitCoreInitialized()
     return InitializationResult.ok
 }()
 
-private func uniffiEnsureInitialized() {
+// Make the ensure init function public so that other modules which have external type references to
+// our types can call it.
+public func uniffiEnsureIdkitInitialized() {
     switch initializationResult {
     case .ok:
         break
