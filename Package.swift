@@ -9,9 +9,9 @@ let package = Package(
 		.library(name: "IDKit", targets: ["IDKit"]),
 	],
 	dependencies: [
-		.package(url: "https://api.github.com/repos/worldcoin/idkit-swift/releases/assets/314150829.zip", from: "5.3.0"),
-        .package(url: "https://api.github.com/repos/worldcoin/idkit-swift/releases/assets/314150829.zip", from: "1.9.0"),
-		.package(url: "https://api.github.com/repos/worldcoin/idkit-swift/releases/assets/314150829.zip", "1.0.0"..<"4.0.0"),
+		.package(url: "https://api.github.com/repos/worldcoin/idkit-swift/releases/assets/314157476.zip", from: "5.3.0"),
+        .package(url: "https://api.github.com/repos/worldcoin/idkit-swift/releases/assets/314157476.zip", from: "1.9.0"),
+		.package(url: "https://api.github.com/repos/worldcoin/idkit-swift/releases/assets/314157476.zip", "1.0.0"..<"4.0.0"),
 	],
 	targets: [
 		.target(
