@@ -1,0 +1,4 @@
+# Auto-generated UniFFI bindings
+# Regenerate with: ./scripts/package-swift.sh
+*
+!.gitignore
