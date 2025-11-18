@@ -48,4 +48,4 @@ let package = Package(
         ),
     ]
 )
-// Release version: <version>
+// Release version: 3.0.2
