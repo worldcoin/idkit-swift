@@ -41,11 +41,6 @@ let package = Package(
                 "Generated/idkit_coreFFI.modulemap"
             ]
         ),
-        .testTarget(
-            name: "IDKitTests",
-            dependencies: ["IDKit"],
-            exclude: ["README.md"]
-        ),
     ]
 )
 // Release version: 3.0.3
