@@ -23,7 +23,7 @@ let package = Package(
         .binaryTarget(
             name: "idkitFFI",
             url: "https://github.com/worldcoin/idkit-swift/releases/download/4.0.1/IDKitFFI.xcframework.zip",
-            checksum: "0cb1fe36aaf95da753bd5bfadc5a52f623fa53787e1b9150b6bf5065d50e687a"
+            checksum: "4c946e74f0de1502eec92e39d41052dfbba88192a3406222322b561984a899c0"
         ),
         .target(
             name: "IDKit",
