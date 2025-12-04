@@ -1607,42 +1607,42 @@ public enum IdkitError: Swift.Error, Equatable, Hashable, Foundation.LocalizedEr
     /**
      * Invalid configuration provided
      */
-    case InvalidConfiguration(message: String
+    case InvalidConfiguration(details: String
     )
     /**
      * JSON serialization/deserialization error
      */
-    case JsonError(message: String
+    case JsonError(details: String
     )
     /**
      * Cryptographic operation error
      */
-    case CryptoError(message: String
+    case CryptoError(details: String
     )
     /**
      * Base64 encoding/decoding error
      */
-    case Base64Error(message: String
+    case Base64Error(details: String
     )
     /**
      * URL parsing error
      */
-    case UrlError(message: String
+    case UrlError(details: String
     )
     /**
      * Invalid proof provided
      */
-    case InvalidProof(message: String
+    case InvalidProof(details: String
     )
     /**
      * Bridge communication error
      */
-    case BridgeError(message: String
+    case BridgeError(details: String
     )
     /**
      * Application-level error
      */
-    case AppError(message: String
+    case AppError(details: String
     )
     /**
      * Unexpected response from bridge
@@ -1684,28 +1684,28 @@ public struct FfiConverterTypeIdkitError: FfiConverterRustBuffer {
 
         
         case 1: return .InvalidConfiguration(
-            message: try FfiConverterString.read(from: &buf)
+            details: try FfiConverterString.read(from: &buf)
             )
         case 2: return .JsonError(
-            message: try FfiConverterString.read(from: &buf)
+            details: try FfiConverterString.read(from: &buf)
             )
         case 3: return .CryptoError(
-            message: try FfiConverterString.read(from: &buf)
+            details: try FfiConverterString.read(from: &buf)
             )
         case 4: return .Base64Error(
-            message: try FfiConverterString.read(from: &buf)
+            details: try FfiConverterString.read(from: &buf)
             )
         case 5: return .UrlError(
-            message: try FfiConverterString.read(from: &buf)
+            details: try FfiConverterString.read(from: &buf)
             )
         case 6: return .InvalidProof(
-            message: try FfiConverterString.read(from: &buf)
+            details: try FfiConverterString.read(from: &buf)
             )
         case 7: return .BridgeError(
-            message: try FfiConverterString.read(from: &buf)
+            details: try FfiConverterString.read(from: &buf)
             )
         case 8: return .AppError(
-            message: try FfiConverterString.read(from: &buf)
+            details: try FfiConverterString.read(from: &buf)
             )
         case 9: return .UnexpectedResponse
         case 10: return .ConnectionFailed
@@ -1722,44 +1722,44 @@ public struct FfiConverterTypeIdkitError: FfiConverterRustBuffer {
 
         
         
-        case let .InvalidConfiguration(message):
+        case let .InvalidConfiguration(details):
             writeInt(&buf, Int32(1))
-            FfiConverterString.write(message, into: &buf)
+            FfiConverterString.write(details, into: &buf)
             
         
-        case let .JsonError(message):
+        case let .JsonError(details):
             writeInt(&buf, Int32(2))
-            FfiConverterString.write(message, into: &buf)
+            FfiConverterString.write(details, into: &buf)
             
         
-        case let .CryptoError(message):
+        case let .CryptoError(details):
             writeInt(&buf, Int32(3))
-            FfiConverterString.write(message, into: &buf)
+            FfiConverterString.write(details, into: &buf)
             
         
-        case let .Base64Error(message):
+        case let .Base64Error(details):
             writeInt(&buf, Int32(4))
-            FfiConverterString.write(message, into: &buf)
+            FfiConverterString.write(details, into: &buf)
             
         
-        case let .UrlError(message):
+        case let .UrlError(details):
             writeInt(&buf, Int32(5))
-            FfiConverterString.write(message, into: &buf)
+            FfiConverterString.write(details, into: &buf)
             
         
-        case let .InvalidProof(message):
+        case let .InvalidProof(details):
             writeInt(&buf, Int32(6))
-            FfiConverterString.write(message, into: &buf)
+            FfiConverterString.write(details, into: &buf)
             
         
-        case let .BridgeError(message):
+        case let .BridgeError(details):
             writeInt(&buf, Int32(7))
-            FfiConverterString.write(message, into: &buf)
+            FfiConverterString.write(details, into: &buf)
             
         
-        case let .AppError(message):
+        case let .AppError(details):
             writeInt(&buf, Int32(8))
-            FfiConverterString.write(message, into: &buf)
+            FfiConverterString.write(details, into: &buf)
             
         
         case .UnexpectedResponse:
