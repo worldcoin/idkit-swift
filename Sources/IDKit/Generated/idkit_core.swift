@@ -25,13 +25,13 @@ fileprivate extension RustBuffer {
     }
 
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
-        try! rustCall { ffi_idkit_core_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
+        try! rustCall { ffi_idkit_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
 
     // Frees the buffer in place.
     // The buffer must not be used after this is called.
     func deallocate() {
-        try! rustCall { ffi_idkit_core_rustbuffer_free(self, $0) }
+        try! rustCall { ffi_idkit_rustbuffer_free(self, $0) }
     }
 }
 
@@ -281,7 +281,7 @@ private func makeRustCall<T, E: Swift.Error>(
     _ callback: (UnsafeMutablePointer<RustCallStatus>) -> T,
     errorHandler: ((RustBuffer) throws -> E)?
 ) throws -> T {
-    uniffiEnsureIdkitCoreInitialized()
+    uniffiEnsureIdkitInitialized()
     var callStatus = RustCallStatus.init()
     let returnedVal = callback(&callStatus)
     try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: errorHandler)
@@ -419,6 +419,46 @@ fileprivate final class UniffiHandleMap<T>: @unchecked Sendable {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterUInt64: FfiConverterPrimitive {
+    typealias FfiType = UInt64
+    typealias SwiftType = UInt64
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UInt64 {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterBool : FfiConverter {
+    typealias FfiType = Int8
+    typealias SwiftType = Bool
+
+    public static func lift(_ value: Int8) throws -> Bool {
+        return value != 0
+    }
+
+    public static func lower(_ value: Bool) -> Int8 {
+        return value ? 1 : 0
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Bool {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: Bool, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterString: FfiConverter {
     typealias SwiftType = String
     typealias FfiType = RustBuffer
@@ -457,11 +497,1206 @@ fileprivate struct FfiConverterString: FfiConverter {
     }
 }
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterData: FfiConverterRustBuffer {
+    typealias SwiftType = Data
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Data {
+        let len: Int32 = try readInt(&buf)
+        return Data(try readBytes(&buf, count: Int(len)))
+    }
+
+    public static func write(_ value: Data, into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        writeBytes(&buf, value)
+    }
+}
+
+
+
 
 /**
- * The proof of verification returned by the World ID protocol
+ * A node in the constraint tree
  */
-public struct Proof: Equatable, Hashable {
+public protocol ConstraintNodeProtocol: AnyObject, Sendable {
+    
+    /**
+     * Serializes a constraint node to JSON
+     *
+     * # Errors
+     *
+     * Returns an error if JSON serialization fails
+     */
+    func toJson() throws  -> String
+    
+}
+/**
+ * A node in the constraint tree
+ */
+open class ConstraintNode: ConstraintNodeProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
+
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoHandle {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noHandle: NoHandle) {
+        self.handle = 0
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_idkit_fn_clone_constraintnode(self.handle, $0) }
+    }
+    // No primary constructor declared for this class.
+
+    deinit {
+        try! rustCall { uniffi_idkit_fn_free_constraintnode(handle, $0) }
+    }
+
+    
+    /**
+     * Creates an "all" (AND) constraint node
+     */
+public static func all(nodes: [ConstraintNode]) -> ConstraintNode  {
+    return try!  FfiConverterTypeConstraintNode_lift(try! rustCall() {
+    uniffi_idkit_fn_constructor_constraintnode_all(
+        FfiConverterSequenceTypeConstraintNode.lower(nodes),$0
+    )
+})
+}
+    
+    /**
+     * Creates an "any" (OR) constraint node
+     */
+public static func any(nodes: [ConstraintNode]) -> ConstraintNode  {
+    return try!  FfiConverterTypeConstraintNode_lift(try! rustCall() {
+    uniffi_idkit_fn_constructor_constraintnode_any(
+        FfiConverterSequenceTypeConstraintNode.lower(nodes),$0
+    )
+})
+}
+    
+    /**
+     * Deserializes a constraint node from JSON
+     *
+     * # Errors
+     *
+     * Returns an error if JSON deserialization fails
+     */
+public static func fromJson(json: String)throws  -> ConstraintNode  {
+    return try  FfiConverterTypeConstraintNode_lift(try rustCallWithError(FfiConverterTypeIdkitError_lift) {
+    uniffi_idkit_fn_constructor_constraintnode_from_json(
+        FfiConverterString.lower(json),$0
+    )
+})
+}
+    
+    /**
+     * Creates an item constraint node from a `CredentialRequest`
+     */
+public static func item(request: CredentialRequest) -> ConstraintNode  {
+    return try!  FfiConverterTypeConstraintNode_lift(try! rustCall() {
+    uniffi_idkit_fn_constructor_constraintnode_item(
+        FfiConverterTypeCredentialRequest_lower(request),$0
+    )
+})
+}
+    
+
+    
+    /**
+     * Serializes a constraint node to JSON
+     *
+     * # Errors
+     *
+     * Returns an error if JSON serialization fails
+     */
+open func toJson()throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeIdkitError_lift) {
+    uniffi_idkit_fn_method_constraintnode_to_json(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+
+    
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeConstraintNode: FfiConverter {
+    typealias FfiType = UInt64
+    typealias SwiftType = ConstraintNode
+
+    public static func lift(_ handle: UInt64) throws -> ConstraintNode {
+        return ConstraintNode(unsafeFromHandle: handle)
+    }
+
+    public static func lower(_ value: ConstraintNode) -> UInt64 {
+        return value.uniffiCloneHandle()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ConstraintNode {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func write(_ value: ConstraintNode, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeConstraintNode_lift(_ handle: UInt64) throws -> ConstraintNode {
+    return try FfiConverterTypeConstraintNode.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeConstraintNode_lower(_ value: ConstraintNode) -> UInt64 {
+    return FfiConverterTypeConstraintNode.lower(value)
+}
+
+
+
+
+
+
+/**
+ * A credential request item
+ *
+ * Represents a single credential type that can be requested, with optional
+ * signal and genesis timestamp constraints.
+ */
+public protocol CredentialRequestProtocol: AnyObject, Sendable {
+    
+    /**
+     * Gets the credential type
+     */
+    func credentialType()  -> CredentialType
+    
+    /**
+     * Gets the expiration timestamp constraint
+     */
+    func expiresAtMin()  -> UInt64?
+    
+    /**
+     * Gets the genesis timestamp constraint
+     */
+    func genesisIssuedAtMin()  -> UInt64?
+    
+    /**
+     * Gets the signal as raw bytes from a request item
+     */
+    func getSignalBytes()  -> Data?
+    
+    /**
+     * Serializes a request item to JSON
+     *
+     * # Errors
+     *
+     * Returns an error if JSON serialization fails
+     */
+    func toJson() throws  -> String
+    
+}
+/**
+ * A credential request item
+ *
+ * Represents a single credential type that can be requested, with optional
+ * signal and genesis timestamp constraints.
+ */
+open class CredentialRequest: CredentialRequestProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
+
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoHandle {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noHandle: NoHandle) {
+        self.handle = 0
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_idkit_fn_clone_credentialrequest(self.handle, $0) }
+    }
+    /**
+     * Creates a new credential request item
+     */
+public convenience init(credentialType: CredentialType, signal: Signal?) {
+    let handle =
+        try! rustCall() {
+    uniffi_idkit_fn_constructor_credentialrequest_new(
+        FfiConverterTypeCredentialType_lower(credentialType),
+        FfiConverterOptionTypeSignal.lower(signal),$0
+    )
+}
+    self.init(unsafeFromHandle: handle)
+}
+
+    deinit {
+        try! rustCall { uniffi_idkit_fn_free_credentialrequest(handle, $0) }
+    }
+
+    
+    /**
+     * Deserializes a request item from JSON
+     *
+     * # Errors
+     *
+     * Returns an error if JSON deserialization fails
+     */
+public static func fromJson(json: String)throws  -> CredentialRequest  {
+    return try  FfiConverterTypeCredentialRequest_lift(try rustCallWithError(FfiConverterTypeIdkitError_lift) {
+    uniffi_idkit_fn_constructor_credentialrequest_from_json(
+        FfiConverterString.lower(json),$0
+    )
+})
+}
+    
+    /**
+     * Creates a new credential request item with an expiration timestamp constraint
+     */
+public static func withExpiresAtMin(credentialType: CredentialType, signal: Signal?, expiresAtMin: UInt64) -> CredentialRequest  {
+    return try!  FfiConverterTypeCredentialRequest_lift(try! rustCall() {
+    uniffi_idkit_fn_constructor_credentialrequest_with_expires_at_min(
+        FfiConverterTypeCredentialType_lower(credentialType),
+        FfiConverterOptionTypeSignal.lower(signal),
+        FfiConverterUInt64.lower(expiresAtMin),$0
+    )
+})
+}
+    
+    /**
+     * Creates a new credential request item with a genesis timestamp constraint
+     */
+public static func withGenesisMin(credentialType: CredentialType, signal: Signal?, genesisMin: UInt64) -> CredentialRequest  {
+    return try!  FfiConverterTypeCredentialRequest_lift(try! rustCall() {
+    uniffi_idkit_fn_constructor_credentialrequest_with_genesis_min(
+        FfiConverterTypeCredentialType_lower(credentialType),
+        FfiConverterOptionTypeSignal.lower(signal),
+        FfiConverterUInt64.lower(genesisMin),$0
+    )
+})
+}
+    
+    /**
+     * Creates a new credential request item with an optional string signal.
+     *
+     * This is a convenience constructor that accepts a string signal directly,
+     * converting it to a Signal internally. Generates a proper Swift initializer.
+     */
+public static func withStringSignal(credentialType: CredentialType, signal: String?) -> CredentialRequest  {
+    return try!  FfiConverterTypeCredentialRequest_lift(try! rustCall() {
+    uniffi_idkit_fn_constructor_credentialrequest_with_string_signal(
+        FfiConverterTypeCredentialType_lower(credentialType),
+        FfiConverterOptionString.lower(signal),$0
+    )
+})
+}
+    
+
+    
+    /**
+     * Gets the credential type
+     */
+open func credentialType() -> CredentialType  {
+    return try!  FfiConverterTypeCredentialType_lift(try! rustCall() {
+    uniffi_idkit_fn_method_credentialrequest_credential_type(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Gets the expiration timestamp constraint
+     */
+open func expiresAtMin() -> UInt64?  {
+    return try!  FfiConverterOptionUInt64.lift(try! rustCall() {
+    uniffi_idkit_fn_method_credentialrequest_expires_at_min(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Gets the genesis timestamp constraint
+     */
+open func genesisIssuedAtMin() -> UInt64?  {
+    return try!  FfiConverterOptionUInt64.lift(try! rustCall() {
+    uniffi_idkit_fn_method_credentialrequest_genesis_issued_at_min(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Gets the signal as raw bytes from a request item
+     */
+open func getSignalBytes() -> Data?  {
+    return try!  FfiConverterOptionData.lift(try! rustCall() {
+    uniffi_idkit_fn_method_credentialrequest_get_signal_bytes(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Serializes a request item to JSON
+     *
+     * # Errors
+     *
+     * Returns an error if JSON serialization fails
+     */
+open func toJson()throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeIdkitError_lift) {
+    uniffi_idkit_fn_method_credentialrequest_to_json(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+
+    
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeCredentialRequest: FfiConverter {
+    typealias FfiType = UInt64
+    typealias SwiftType = CredentialRequest
+
+    public static func lift(_ handle: UInt64) throws -> CredentialRequest {
+        return CredentialRequest(unsafeFromHandle: handle)
+    }
+
+    public static func lower(_ value: CredentialRequest) -> UInt64 {
+        return value.uniffiCloneHandle()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CredentialRequest {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func write(_ value: CredentialRequest, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCredentialRequest_lift(_ handle: UInt64) throws -> CredentialRequest {
+    return try FfiConverterTypeCredentialRequest.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCredentialRequest_lower(_ value: CredentialRequest) -> UInt64 {
+    return FfiConverterTypeCredentialRequest.lower(value)
+}
+
+
+
+
+
+
+/**
+ * Unified builder for creating `IDKit` requests and sessions
+ */
+public protocol IdKitBuilderProtocol: AnyObject, Sendable {
+    
+    /**
+     * Creates a `BridgeConnection` with the given constraints
+     *
+     * # Errors
+     *
+     * Returns an error if the request cannot be created
+     */
+    func constraints(constraints: ConstraintNode) throws  -> IdKitRequestWrapper
+    
+    /**
+     * Creates a `BridgeConnection` from a preset (works for all request types)
+     *
+     * Presets provide a simplified way to create requests with predefined
+     * credential configurations.
+     *
+     * # Errors
+     *
+     * Returns an error if the request cannot be created
+     */
+    func preset(preset: Preset) throws  -> IdKitRequestWrapper
+    
+}
+/**
+ * Unified builder for creating `IDKit` requests and sessions
+ */
+open class IdKitBuilder: IdKitBuilderProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
+
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoHandle {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noHandle: NoHandle) {
+        self.handle = 0
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_idkit_fn_clone_idkitbuilder(self.handle, $0) }
+    }
+    // No primary constructor declared for this class.
+
+    deinit {
+        try! rustCall { uniffi_idkit_fn_free_idkitbuilder(handle, $0) }
+    }
+
+    
+    /**
+     * Creates a new builder for creating a new session
+     */
+public static func fromCreateSession(config: IdKitSessionConfig) -> IdKitBuilder  {
+    return try!  FfiConverterTypeIDKitBuilder_lift(try! rustCall() {
+    uniffi_idkit_fn_constructor_idkitbuilder_from_create_session(
+        FfiConverterTypeIDKitSessionConfig_lower(config),$0
+    )
+})
+}
+    
+    /**
+     * Creates a new builder for proving an existing session
+     */
+public static func fromProveSession(sessionId: String, config: IdKitSessionConfig) -> IdKitBuilder  {
+    return try!  FfiConverterTypeIDKitBuilder_lift(try! rustCall() {
+    uniffi_idkit_fn_constructor_idkitbuilder_from_prove_session(
+        FfiConverterString.lower(sessionId),
+        FfiConverterTypeIDKitSessionConfig_lower(config),$0
+    )
+})
+}
+    
+    /**
+     * Creates a new builder for uniqueness requests
+     */
+public static func fromRequest(config: IdKitRequestConfig) -> IdKitBuilder  {
+    return try!  FfiConverterTypeIDKitBuilder_lift(try! rustCall() {
+    uniffi_idkit_fn_constructor_idkitbuilder_from_request(
+        FfiConverterTypeIDKitRequestConfig_lower(config),$0
+    )
+})
+}
+    
+
+    
+    /**
+     * Creates a `BridgeConnection` with the given constraints
+     *
+     * # Errors
+     *
+     * Returns an error if the request cannot be created
+     */
+open func constraints(constraints: ConstraintNode)throws  -> IdKitRequestWrapper  {
+    return try  FfiConverterTypeIDKitRequestWrapper_lift(try rustCallWithError(FfiConverterTypeIdkitError_lift) {
+    uniffi_idkit_fn_method_idkitbuilder_constraints(
+            self.uniffiCloneHandle(),
+        FfiConverterTypeConstraintNode_lower(constraints),$0
+    )
+})
+}
+    
+    /**
+     * Creates a `BridgeConnection` from a preset (works for all request types)
+     *
+     * Presets provide a simplified way to create requests with predefined
+     * credential configurations.
+     *
+     * # Errors
+     *
+     * Returns an error if the request cannot be created
+     */
+open func preset(preset: Preset)throws  -> IdKitRequestWrapper  {
+    return try  FfiConverterTypeIDKitRequestWrapper_lift(try rustCallWithError(FfiConverterTypeIdkitError_lift) {
+    uniffi_idkit_fn_method_idkitbuilder_preset(
+            self.uniffiCloneHandle(),
+        FfiConverterTypePreset_lower(preset),$0
+    )
+})
+}
+    
+
+    
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeIDKitBuilder: FfiConverter {
+    typealias FfiType = UInt64
+    typealias SwiftType = IdKitBuilder
+
+    public static func lift(_ handle: UInt64) throws -> IdKitBuilder {
+        return IdKitBuilder(unsafeFromHandle: handle)
+    }
+
+    public static func lower(_ value: IdKitBuilder) -> UInt64 {
+        return value.uniffiCloneHandle()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> IdKitBuilder {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func write(_ value: IdKitBuilder, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeIDKitBuilder_lift(_ handle: UInt64) throws -> IdKitBuilder {
+    return try FfiConverterTypeIDKitBuilder.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeIDKitBuilder_lower(_ value: IdKitBuilder) -> UInt64 {
+    return FfiConverterTypeIDKitBuilder.lower(value)
+}
+
+
+
+
+
+
+public protocol IdKitRequestWrapperProtocol: AnyObject, Sendable {
+    
+    /**
+     * Returns the connect URL for World App
+     */
+    func connectUrl()  -> String
+    
+    /**
+     * Polls the request for updates until completion
+     */
+    func pollStatus(pollIntervalMs: UInt64?, timeoutMs: UInt64?)  -> StatusWrapper
+    
+    /**
+     * Returns the request ID for this request
+     */
+    func requestId()  -> String
+    
+}
+open class IdKitRequestWrapper: IdKitRequestWrapperProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
+
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoHandle {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noHandle: NoHandle) {
+        self.handle = 0
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_idkit_fn_clone_idkitrequestwrapper(self.handle, $0) }
+    }
+    // No primary constructor declared for this class.
+
+    deinit {
+        try! rustCall { uniffi_idkit_fn_free_idkitrequestwrapper(handle, $0) }
+    }
+
+    
+
+    
+    /**
+     * Returns the connect URL for World App
+     */
+open func connectUrl() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_idkit_fn_method_idkitrequestwrapper_connect_url(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Polls the request for updates until completion
+     */
+open func pollStatus(pollIntervalMs: UInt64?, timeoutMs: UInt64?) -> StatusWrapper  {
+    return try!  FfiConverterTypeStatusWrapper_lift(try! rustCall() {
+    uniffi_idkit_fn_method_idkitrequestwrapper_poll_status(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionUInt64.lower(pollIntervalMs),
+        FfiConverterOptionUInt64.lower(timeoutMs),$0
+    )
+})
+}
+    
+    /**
+     * Returns the request ID for this request
+     */
+open func requestId() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_idkit_fn_method_idkitrequestwrapper_request_id(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+
+    
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeIDKitRequestWrapper: FfiConverter {
+    typealias FfiType = UInt64
+    typealias SwiftType = IdKitRequestWrapper
+
+    public static func lift(_ handle: UInt64) throws -> IdKitRequestWrapper {
+        return IdKitRequestWrapper(unsafeFromHandle: handle)
+    }
+
+    public static func lower(_ value: IdKitRequestWrapper) -> UInt64 {
+        return value.uniffiCloneHandle()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> IdKitRequestWrapper {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func write(_ value: IdKitRequestWrapper, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeIDKitRequestWrapper_lift(_ handle: UInt64) throws -> IdKitRequestWrapper {
+    return try FfiConverterTypeIDKitRequestWrapper.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeIDKitRequestWrapper_lower(_ value: IdKitRequestWrapper) -> UInt64 {
+    return FfiConverterTypeIDKitRequestWrapper.lower(value)
+}
+
+
+
+
+
+
+/**
+ * Relying Party context for protocol-level proof requests
+ *
+ * Contains the RP-specific data needed to construct a `ProofRequest`.
+ * This includes timing information, nonce, and the RP's signature.
+ */
+public protocol RpContextProtocol: AnyObject, Sendable {
+    
+    /**
+     * Gets the `created_at` timestamp
+     */
+    func createdAt()  -> UInt64
+    
+    /**
+     * Gets the `expires_at` timestamp
+     */
+    func expiresAt()  -> UInt64
+    
+    /**
+     * Gets the nonce
+     */
+    func nonce()  -> String
+    
+    /**
+     * Gets the RP ID as a string
+     */
+    func rpId()  -> String
+    
+    /**
+     * Gets the signature
+     */
+    func signature()  -> String
+    
+}
+/**
+ * Relying Party context for protocol-level proof requests
+ *
+ * Contains the RP-specific data needed to construct a `ProofRequest`.
+ * This includes timing information, nonce, and the RP's signature.
+ */
+open class RpContext: RpContextProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
+
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoHandle {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noHandle: NoHandle) {
+        self.handle = 0
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_idkit_fn_clone_rpcontext(self.handle, $0) }
+    }
+    /**
+     * Creates a new RP context
+     *
+     * # Errors
+     *
+     * Returns an error if `rp_id` is not a valid RP ID
+     */
+public convenience init(rpId: String, nonce: String, createdAt: UInt64, expiresAt: UInt64, signature: String)throws  {
+    let handle =
+        try rustCallWithError(FfiConverterTypeIdkitError_lift) {
+    uniffi_idkit_fn_constructor_rpcontext_new(
+        FfiConverterString.lower(rpId),
+        FfiConverterString.lower(nonce),
+        FfiConverterUInt64.lower(createdAt),
+        FfiConverterUInt64.lower(expiresAt),
+        FfiConverterString.lower(signature),$0
+    )
+}
+    self.init(unsafeFromHandle: handle)
+}
+
+    deinit {
+        try! rustCall { uniffi_idkit_fn_free_rpcontext(handle, $0) }
+    }
+
+    
+
+    
+    /**
+     * Gets the `created_at` timestamp
+     */
+open func createdAt() -> UInt64  {
+    return try!  FfiConverterUInt64.lift(try! rustCall() {
+    uniffi_idkit_fn_method_rpcontext_created_at(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Gets the `expires_at` timestamp
+     */
+open func expiresAt() -> UInt64  {
+    return try!  FfiConverterUInt64.lift(try! rustCall() {
+    uniffi_idkit_fn_method_rpcontext_expires_at(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Gets the nonce
+     */
+open func nonce() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_idkit_fn_method_rpcontext_nonce(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Gets the RP ID as a string
+     */
+open func rpId() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_idkit_fn_method_rpcontext_rp_id(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Gets the signature
+     */
+open func signature() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_idkit_fn_method_rpcontext_signature(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+
+    
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeRpContext: FfiConverter {
+    typealias FfiType = UInt64
+    typealias SwiftType = RpContext
+
+    public static func lift(_ handle: UInt64) throws -> RpContext {
+        return RpContext(unsafeFromHandle: handle)
+    }
+
+    public static func lower(_ value: RpContext) -> UInt64 {
+        return value.uniffiCloneHandle()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RpContext {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func write(_ value: RpContext, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRpContext_lift(_ handle: UInt64) throws -> RpContext {
+    return try FfiConverterTypeRpContext.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRpContext_lower(_ value: RpContext) -> UInt64 {
+    return FfiConverterTypeRpContext.lower(value)
+}
+
+
+
+
+
+
+/**
+ * A signal value that can be either a UTF-8 string or raw bytes
+ *
+ * Signals are used to create unique proofs. They can be:
+ * - UTF-8 strings (common case for off-chain usage)
+ * - Raw bytes (user handles any encoding, e.g., ABI encoding for on-chain use)
+ */
+public protocol SignalProtocol: AnyObject, Sendable {
+    
+    /**
+     * Gets the signal as raw bytes
+     */
+    func asBytes()  -> Data
+    
+    /**
+     * Gets the signal as a string if it's a UTF-8 string signal
+     */
+    func asString()  -> String?
+    
+}
+/**
+ * A signal value that can be either a UTF-8 string or raw bytes
+ *
+ * Signals are used to create unique proofs. They can be:
+ * - UTF-8 strings (common case for off-chain usage)
+ * - Raw bytes (user handles any encoding, e.g., ABI encoding for on-chain use)
+ */
+open class Signal: SignalProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
+
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoHandle {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noHandle: NoHandle) {
+        self.handle = 0
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_idkit_fn_clone_signal(self.handle, $0) }
+    }
+    // No primary constructor declared for this class.
+
+    deinit {
+        try! rustCall { uniffi_idkit_fn_free_signal(handle, $0) }
+    }
+
+    
+    /**
+     * Creates a signal from raw bytes
+     */
+public static func fromBytes(bytes: Data) -> Signal  {
+    return try!  FfiConverterTypeSignal_lift(try! rustCall() {
+    uniffi_idkit_fn_constructor_signal_from_bytes(
+        FfiConverterData.lower(bytes),$0
+    )
+})
+}
+    
+    /**
+     * Creates a signal from a string
+     */
+public static func fromString(s: String) -> Signal  {
+    return try!  FfiConverterTypeSignal_lift(try! rustCall() {
+    uniffi_idkit_fn_constructor_signal_from_string(
+        FfiConverterString.lower(s),$0
+    )
+})
+}
+    
+
+    
+    /**
+     * Gets the signal as raw bytes
+     */
+open func asBytes() -> Data  {
+    return try!  FfiConverterData.lift(try! rustCall() {
+    uniffi_idkit_fn_method_signal_as_bytes(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Gets the signal as a string if it's a UTF-8 string signal
+     */
+open func asString() -> String?  {
+    return try!  FfiConverterOptionString.lift(try! rustCall() {
+    uniffi_idkit_fn_method_signal_as_string(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+
+    
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeSignal: FfiConverter {
+    typealias FfiType = UInt64
+    typealias SwiftType = Signal
+
+    public static func lift(_ handle: UInt64) throws -> Signal {
+        return Signal(unsafeFromHandle: handle)
+    }
+
+    public static func lower(_ value: Signal) -> UInt64 {
+        return value.uniffiCloneHandle()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Signal {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func write(_ value: Signal, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSignal_lift(_ handle: UInt64) throws -> Signal {
+    return try FfiConverterTypeSignal.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSignal_lower(_ value: Signal) -> UInt64 {
+    return FfiConverterTypeSignal.lower(value)
+}
+
+
+
+
+/**
+ * Legacy bridge response (protocol v1 / World ID v3)
+ */
+public struct BridgeResponseV1: Equatable, Hashable {
     /**
      * The Zero-knowledge proof of the verification (hex string, ABI encoded)
      */
@@ -504,16 +1739,16 @@ public struct Proof: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension Proof: Sendable {}
+extension BridgeResponseV1: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeProof: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Proof {
+public struct FfiConverterTypeBridgeResponseV1: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> BridgeResponseV1 {
         return
-            try Proof(
+            try BridgeResponseV1(
                 proof: FfiConverterString.read(from: &buf), 
                 merkleRoot: FfiConverterString.read(from: &buf), 
                 nullifierHash: FfiConverterString.read(from: &buf), 
@@ -521,7 +1756,7 @@ public struct FfiConverterTypeProof: FfiConverterRustBuffer {
         )
     }
 
-    public static func write(_ value: Proof, into buf: inout [UInt8]) {
+    public static func write(_ value: BridgeResponseV1, into buf: inout [UInt8]) {
         FfiConverterString.write(value.proof, into: &buf)
         FfiConverterString.write(value.merkleRoot, into: &buf)
         FfiConverterString.write(value.nullifierHash, into: &buf)
@@ -533,15 +1768,374 @@ public struct FfiConverterTypeProof: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeProof_lift(_ buf: RustBuffer) throws -> Proof {
-    return try FfiConverterTypeProof.lift(buf)
+public func FfiConverterTypeBridgeResponseV1_lift(_ buf: RustBuffer) throws -> BridgeResponseV1 {
+    return try FfiConverterTypeBridgeResponseV1.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeProof_lower(_ value: Proof) -> RustBuffer {
-    return FfiConverterTypeProof.lower(value)
+public func FfiConverterTypeBridgeResponseV1_lower(_ value: BridgeResponseV1) -> RustBuffer {
+    return FfiConverterTypeBridgeResponseV1.lower(value)
+}
+
+
+/**
+ * Configuration for `request()`
+ */
+public struct IdKitRequestConfig {
+    /**
+     * Application ID from the Developer Portal
+     */
+    public var appId: String
+    /**
+     * Action identifier
+     */
+    public var action: String
+    /**
+     * RP context for building protocol-level `ProofRequest`
+     */
+    public var rpContext: RpContext
+    /**
+     * Optional action description shown to users
+     */
+    public var actionDescription: String?
+    /**
+     * Optional bridge URL (defaults to production)
+     */
+    public var bridgeUrl: String?
+    /**
+     * Whether to accept legacy (v3) proofs as fallback.
+     * - `true`: Accept both v3 and v4 proofs. Use during migration.
+     * - `false`: Only accept v4 proofs. Use after migration cutoff or for new apps.
+     */
+    public var allowLegacyProofs: Bool
+    /**
+     * Optional override for the connect base URL (e.g., for staging environments)
+     */
+    public var overrideConnectBaseUrl: String?
+    /**
+     * Optional environment override (defaults to Production)
+     */
+    public var environment: Environment?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Application ID from the Developer Portal
+         */appId: String, 
+        /**
+         * Action identifier
+         */action: String, 
+        /**
+         * RP context for building protocol-level `ProofRequest`
+         */rpContext: RpContext, 
+        /**
+         * Optional action description shown to users
+         */actionDescription: String?, 
+        /**
+         * Optional bridge URL (defaults to production)
+         */bridgeUrl: String?, 
+        /**
+         * Whether to accept legacy (v3) proofs as fallback.
+         * - `true`: Accept both v3 and v4 proofs. Use during migration.
+         * - `false`: Only accept v4 proofs. Use after migration cutoff or for new apps.
+         */allowLegacyProofs: Bool, 
+        /**
+         * Optional override for the connect base URL (e.g., for staging environments)
+         */overrideConnectBaseUrl: String?, 
+        /**
+         * Optional environment override (defaults to Production)
+         */environment: Environment?) {
+        self.appId = appId
+        self.action = action
+        self.rpContext = rpContext
+        self.actionDescription = actionDescription
+        self.bridgeUrl = bridgeUrl
+        self.allowLegacyProofs = allowLegacyProofs
+        self.overrideConnectBaseUrl = overrideConnectBaseUrl
+        self.environment = environment
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension IdKitRequestConfig: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeIDKitRequestConfig: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> IdKitRequestConfig {
+        return
+            try IdKitRequestConfig(
+                appId: FfiConverterString.read(from: &buf), 
+                action: FfiConverterString.read(from: &buf), 
+                rpContext: FfiConverterTypeRpContext.read(from: &buf), 
+                actionDescription: FfiConverterOptionString.read(from: &buf), 
+                bridgeUrl: FfiConverterOptionString.read(from: &buf), 
+                allowLegacyProofs: FfiConverterBool.read(from: &buf), 
+                overrideConnectBaseUrl: FfiConverterOptionString.read(from: &buf), 
+                environment: FfiConverterOptionTypeEnvironment.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: IdKitRequestConfig, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.appId, into: &buf)
+        FfiConverterString.write(value.action, into: &buf)
+        FfiConverterTypeRpContext.write(value.rpContext, into: &buf)
+        FfiConverterOptionString.write(value.actionDescription, into: &buf)
+        FfiConverterOptionString.write(value.bridgeUrl, into: &buf)
+        FfiConverterBool.write(value.allowLegacyProofs, into: &buf)
+        FfiConverterOptionString.write(value.overrideConnectBaseUrl, into: &buf)
+        FfiConverterOptionTypeEnvironment.write(value.environment, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeIDKitRequestConfig_lift(_ buf: RustBuffer) throws -> IdKitRequestConfig {
+    return try FfiConverterTypeIDKitRequestConfig.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeIDKitRequestConfig_lower(_ value: IdKitRequestConfig) -> RustBuffer {
+    return FfiConverterTypeIDKitRequestConfig.lower(value)
+}
+
+
+/**
+ * This is the top-level result returned from a proof request flow.
+ * It contains the protocol version and an array of credential responses.
+ * For session proofs, it also contains the `session_id`.
+ */
+public struct IdKitResult: Equatable, Hashable {
+    /**
+     * Protocol version ("4.0" or "3.0") - applies to all responses
+     */
+    public var protocolVersion: String
+    /**
+     * Nonce used in the request (always present)
+     */
+    public var nonce: String
+    /**
+     * Action identifier (only for uniqueness proofs)
+     */
+    public var action: String?
+    /**
+     * Action description (only if provided in input)
+     */
+    public var actionDescription: String?
+    /**
+     * Session ID (only present for session proofs)
+     */
+    public var sessionId: String?
+    /**
+     * Array of credential responses (always successful - errors at `BridgeResponse` level)
+     */
+    public var responses: [ResponseItem]
+    /**
+     * The environment used for this request ("production" or "staging")
+     */
+    public var environment: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Protocol version ("4.0" or "3.0") - applies to all responses
+         */protocolVersion: String, 
+        /**
+         * Nonce used in the request (always present)
+         */nonce: String, 
+        /**
+         * Action identifier (only for uniqueness proofs)
+         */action: String?, 
+        /**
+         * Action description (only if provided in input)
+         */actionDescription: String?, 
+        /**
+         * Session ID (only present for session proofs)
+         */sessionId: String?, 
+        /**
+         * Array of credential responses (always successful - errors at `BridgeResponse` level)
+         */responses: [ResponseItem], 
+        /**
+         * The environment used for this request ("production" or "staging")
+         */environment: String) {
+        self.protocolVersion = protocolVersion
+        self.nonce = nonce
+        self.action = action
+        self.actionDescription = actionDescription
+        self.sessionId = sessionId
+        self.responses = responses
+        self.environment = environment
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension IdKitResult: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeIDKitResult: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> IdKitResult {
+        return
+            try IdKitResult(
+                protocolVersion: FfiConverterString.read(from: &buf), 
+                nonce: FfiConverterString.read(from: &buf), 
+                action: FfiConverterOptionString.read(from: &buf), 
+                actionDescription: FfiConverterOptionString.read(from: &buf), 
+                sessionId: FfiConverterOptionString.read(from: &buf), 
+                responses: FfiConverterSequenceTypeResponseItem.read(from: &buf), 
+                environment: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: IdKitResult, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.protocolVersion, into: &buf)
+        FfiConverterString.write(value.nonce, into: &buf)
+        FfiConverterOptionString.write(value.action, into: &buf)
+        FfiConverterOptionString.write(value.actionDescription, into: &buf)
+        FfiConverterOptionString.write(value.sessionId, into: &buf)
+        FfiConverterSequenceTypeResponseItem.write(value.responses, into: &buf)
+        FfiConverterString.write(value.environment, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeIDKitResult_lift(_ buf: RustBuffer) throws -> IdKitResult {
+    return try FfiConverterTypeIDKitResult.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeIDKitResult_lower(_ value: IdKitResult) -> RustBuffer {
+    return FfiConverterTypeIDKitResult.lower(value)
+}
+
+
+/**
+ * Configuration for session requests (no action field, v4 only)
+ *
+ * Sessions are always World ID v4 - there is no legacy (v3) session support.
+ */
+public struct IdKitSessionConfig {
+    /**
+     * Application ID from the Developer Portal
+     */
+    public var appId: String
+    /**
+     * RP context for building protocol-level `ProofRequest`
+     */
+    public var rpContext: RpContext
+    /**
+     * Optional action description shown to users
+     */
+    public var actionDescription: String?
+    /**
+     * Optional bridge URL (defaults to production)
+     */
+    public var bridgeUrl: String?
+    /**
+     * Optional override for the connect base URL (e.g., for staging environments)
+     */
+    public var overrideConnectBaseUrl: String?
+    /**
+     * Optional environment override (defaults to Production)
+     */
+    public var environment: Environment?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Application ID from the Developer Portal
+         */appId: String, 
+        /**
+         * RP context for building protocol-level `ProofRequest`
+         */rpContext: RpContext, 
+        /**
+         * Optional action description shown to users
+         */actionDescription: String?, 
+        /**
+         * Optional bridge URL (defaults to production)
+         */bridgeUrl: String?, 
+        /**
+         * Optional override for the connect base URL (e.g., for staging environments)
+         */overrideConnectBaseUrl: String?, 
+        /**
+         * Optional environment override (defaults to Production)
+         */environment: Environment?) {
+        self.appId = appId
+        self.rpContext = rpContext
+        self.actionDescription = actionDescription
+        self.bridgeUrl = bridgeUrl
+        self.overrideConnectBaseUrl = overrideConnectBaseUrl
+        self.environment = environment
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension IdKitSessionConfig: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeIDKitSessionConfig: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> IdKitSessionConfig {
+        return
+            try IdKitSessionConfig(
+                appId: FfiConverterString.read(from: &buf), 
+                rpContext: FfiConverterTypeRpContext.read(from: &buf), 
+                actionDescription: FfiConverterOptionString.read(from: &buf), 
+                bridgeUrl: FfiConverterOptionString.read(from: &buf), 
+                overrideConnectBaseUrl: FfiConverterOptionString.read(from: &buf), 
+                environment: FfiConverterOptionTypeEnvironment.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: IdKitSessionConfig, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.appId, into: &buf)
+        FfiConverterTypeRpContext.write(value.rpContext, into: &buf)
+        FfiConverterOptionString.write(value.actionDescription, into: &buf)
+        FfiConverterOptionString.write(value.bridgeUrl, into: &buf)
+        FfiConverterOptionString.write(value.overrideConnectBaseUrl, into: &buf)
+        FfiConverterOptionTypeEnvironment.write(value.environment, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeIDKitSessionConfig_lift(_ buf: RustBuffer) throws -> IdKitSessionConfig {
+    return try FfiConverterTypeIDKitSessionConfig.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeIDKitSessionConfig_lower(_ value: IdKitSessionConfig) -> RustBuffer {
+    return FfiConverterTypeIDKitSessionConfig.lower(value)
 }
 
 // Note that we don't yet support `indirect` for enums.
@@ -556,6 +2150,11 @@ public enum AppError: Equatable, Hashable {
      * User rejected the request
      */
     case userRejected
+    /**
+     * Verification rejected
+     * Legacy error, it's replaced by `UserRejected` in the new Bridge Protocol
+     */
+    case verificationRejected
     /**
      * Credential unavailable
      */
@@ -585,6 +2184,14 @@ public enum AppError: Equatable, Hashable {
      */
     case connectionFailed
     /**
+     * Maximum verifications reached
+     */
+    case maxVerificationsReached
+    /**
+     * Verification failed by host app
+     */
+    case failedByHostApp
+    /**
      * Generic error
      */
     case genericError
@@ -609,21 +2216,27 @@ public struct FfiConverterTypeAppError: FfiConverterRustBuffer {
         
         case 1: return .userRejected
         
-        case 2: return .credentialUnavailable
+        case 2: return .verificationRejected
         
-        case 3: return .malformedRequest
+        case 3: return .credentialUnavailable
         
-        case 4: return .invalidNetwork
+        case 4: return .malformedRequest
         
-        case 5: return .inclusionProofPending
+        case 5: return .invalidNetwork
         
-        case 6: return .inclusionProofFailed
+        case 6: return .inclusionProofPending
         
-        case 7: return .unexpectedResponse
+        case 7: return .inclusionProofFailed
         
-        case 8: return .connectionFailed
+        case 8: return .unexpectedResponse
         
-        case 9: return .genericError
+        case 9: return .connectionFailed
+        
+        case 10: return .maxVerificationsReached
+        
+        case 11: return .failedByHostApp
+        
+        case 12: return .genericError
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -637,36 +2250,48 @@ public struct FfiConverterTypeAppError: FfiConverterRustBuffer {
             writeInt(&buf, Int32(1))
         
         
-        case .credentialUnavailable:
+        case .verificationRejected:
             writeInt(&buf, Int32(2))
         
         
-        case .malformedRequest:
+        case .credentialUnavailable:
             writeInt(&buf, Int32(3))
         
         
-        case .invalidNetwork:
+        case .malformedRequest:
             writeInt(&buf, Int32(4))
         
         
-        case .inclusionProofPending:
+        case .invalidNetwork:
             writeInt(&buf, Int32(5))
         
         
-        case .inclusionProofFailed:
+        case .inclusionProofPending:
             writeInt(&buf, Int32(6))
         
         
-        case .unexpectedResponse:
+        case .inclusionProofFailed:
             writeInt(&buf, Int32(7))
         
         
-        case .connectionFailed:
+        case .unexpectedResponse:
             writeInt(&buf, Int32(8))
         
         
-        case .genericError:
+        case .connectionFailed:
             writeInt(&buf, Int32(9))
+        
+        
+        case .maxVerificationsReached:
+            writeInt(&buf, Int32(10))
+        
+        
+        case .failedByHostApp:
+            writeInt(&buf, Int32(11))
+        
+        
+        case .genericError:
+            writeInt(&buf, Int32(12))
         
         }
     }
@@ -795,6 +2420,658 @@ public func FfiConverterTypeCredentialType_lower(_ value: CredentialType) -> Rus
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 /**
+ * Environment for the bridge request
+ */
+
+public enum Environment: Equatable, Hashable {
+    
+    case production
+    case staging
+
+
+
+}
+
+#if compiler(>=6)
+extension Environment: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeEnvironment: FfiConverterRustBuffer {
+    typealias SwiftType = Environment
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Environment {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .production
+        
+        case 2: return .staging
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: Environment, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .production:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .staging:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEnvironment_lift(_ buf: RustBuffer) throws -> Environment {
+    return try FfiConverterTypeEnvironment.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEnvironment_lower(_ value: Environment) -> RustBuffer {
+    return FfiConverterTypeEnvironment.lower(value)
+}
+
+
+
+public enum IdkitError: Swift.Error, Equatable, Hashable, Foundation.LocalizedError {
+
+    
+    
+    /**
+     * Invalid configuration provided
+     */
+    case InvalidConfiguration(details: String
+    )
+    /**
+     * JSON serialization/deserialization error
+     */
+    case JsonError(details: String
+    )
+    /**
+     * Cryptographic operation error
+     */
+    case CryptoError(details: String
+    )
+    /**
+     * Base64 encoding/decoding error
+     */
+    case Base64Error(details: String
+    )
+    /**
+     * URL parsing error
+     */
+    case UrlError(details: String
+    )
+    /**
+     * Invalid proof provided
+     */
+    case InvalidProof(details: String
+    )
+    /**
+     * Bridge communication error
+     */
+    case BridgeError(details: String
+    )
+    /**
+     * Application-level error
+     */
+    case AppError(details: String
+    )
+    /**
+     * Unexpected response from bridge
+     */
+    case UnexpectedResponse
+    /**
+     * Connection to bridge failed
+     */
+    case ConnectionFailed
+    /**
+     * Request timed out
+     */
+    case Timeout
+
+    
+
+    
+    public var errorDescription: String? {
+        String(reflecting: self)
+    }
+    
+}
+
+#if compiler(>=6)
+extension IdkitError: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeIdkitError: FfiConverterRustBuffer {
+    typealias SwiftType = IdkitError
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> IdkitError {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        
+
+        
+        case 1: return .InvalidConfiguration(
+            details: try FfiConverterString.read(from: &buf)
+            )
+        case 2: return .JsonError(
+            details: try FfiConverterString.read(from: &buf)
+            )
+        case 3: return .CryptoError(
+            details: try FfiConverterString.read(from: &buf)
+            )
+        case 4: return .Base64Error(
+            details: try FfiConverterString.read(from: &buf)
+            )
+        case 5: return .UrlError(
+            details: try FfiConverterString.read(from: &buf)
+            )
+        case 6: return .InvalidProof(
+            details: try FfiConverterString.read(from: &buf)
+            )
+        case 7: return .BridgeError(
+            details: try FfiConverterString.read(from: &buf)
+            )
+        case 8: return .AppError(
+            details: try FfiConverterString.read(from: &buf)
+            )
+        case 9: return .UnexpectedResponse
+        case 10: return .ConnectionFailed
+        case 11: return .Timeout
+
+         default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: IdkitError, into buf: inout [UInt8]) {
+        switch value {
+
+        
+
+        
+        
+        case let .InvalidConfiguration(details):
+            writeInt(&buf, Int32(1))
+            FfiConverterString.write(details, into: &buf)
+            
+        
+        case let .JsonError(details):
+            writeInt(&buf, Int32(2))
+            FfiConverterString.write(details, into: &buf)
+            
+        
+        case let .CryptoError(details):
+            writeInt(&buf, Int32(3))
+            FfiConverterString.write(details, into: &buf)
+            
+        
+        case let .Base64Error(details):
+            writeInt(&buf, Int32(4))
+            FfiConverterString.write(details, into: &buf)
+            
+        
+        case let .UrlError(details):
+            writeInt(&buf, Int32(5))
+            FfiConverterString.write(details, into: &buf)
+            
+        
+        case let .InvalidProof(details):
+            writeInt(&buf, Int32(6))
+            FfiConverterString.write(details, into: &buf)
+            
+        
+        case let .BridgeError(details):
+            writeInt(&buf, Int32(7))
+            FfiConverterString.write(details, into: &buf)
+            
+        
+        case let .AppError(details):
+            writeInt(&buf, Int32(8))
+            FfiConverterString.write(details, into: &buf)
+            
+        
+        case .UnexpectedResponse:
+            writeInt(&buf, Int32(9))
+        
+        
+        case .ConnectionFailed:
+            writeInt(&buf, Int32(10))
+        
+        
+        case .Timeout:
+            writeInt(&buf, Int32(11))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeIdkitError_lift(_ buf: RustBuffer) throws -> IdkitError {
+    return try FfiConverterTypeIdkitError.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeIdkitError_lower(_ value: IdkitError) -> RustBuffer {
+    return FfiConverterTypeIdkitError.lower(value)
+}
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * Credential presets for World ID verification
+ *
+ * Each preset defines a pre-configured set of credential requests
+ * with sensible defaults. Presets convert to both World ID 4.0
+ * (requests array) and World ID 3.0 (`verification_level`) formats.
+ */
+
+public enum Preset: Equatable, Hashable {
+    
+    /**
+     * Orb-only verification (highest assurance level)
+     *
+     * Requests orb-verified credentials only, with optional signal.
+     * The signal can be either a plain string or a hex-encoded ABI value (with 0x prefix).
+     */
+    case orbLegacy(
+        /**
+         * Optional signal to include in the proof.
+         * Can be a plain string or hex-encoded ABI value (with 0x prefix).
+         */signal: String?
+    )
+    /**
+     * Secure document verification
+     *
+     * Requests secure document-verified credentials only, with optional signal.
+     * The signal can be either a plain string or a hex-encoded ABI value (with 0x prefix).
+     */
+    case secureDocumentLegacy(
+        /**
+         * Optional signal to include in the proof.
+         * Can be a plain string or hex-encoded ABI value (with 0x prefix).
+         */signal: String?
+    )
+    /**
+     * Document verification
+     *
+     * Requests document-verified credentials only, with optional signal.
+     * The signal can be either a plain string or a hex-encoded ABI value (with 0x prefix).
+     */
+    case documentLegacy(
+        /**
+         * Optional signal to include in the proof.
+         * Can be a plain string or hex-encoded ABI value (with 0x prefix).
+         */signal: String?
+    )
+
+
+
+}
+
+#if compiler(>=6)
+extension Preset: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypePreset: FfiConverterRustBuffer {
+    typealias SwiftType = Preset
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Preset {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .orbLegacy(signal: try FfiConverterOptionString.read(from: &buf)
+        )
+        
+        case 2: return .secureDocumentLegacy(signal: try FfiConverterOptionString.read(from: &buf)
+        )
+        
+        case 3: return .documentLegacy(signal: try FfiConverterOptionString.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: Preset, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case let .orbLegacy(signal):
+            writeInt(&buf, Int32(1))
+            FfiConverterOptionString.write(signal, into: &buf)
+            
+        
+        case let .secureDocumentLegacy(signal):
+            writeInt(&buf, Int32(2))
+            FfiConverterOptionString.write(signal, into: &buf)
+            
+        
+        case let .documentLegacy(signal):
+            writeInt(&buf, Int32(3))
+            FfiConverterOptionString.write(signal, into: &buf)
+            
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePreset_lift(_ buf: RustBuffer) throws -> Preset {
+    return try FfiConverterTypePreset.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePreset_lower(_ value: Preset) -> RustBuffer {
+    return FfiConverterTypePreset.lower(value)
+}
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * A single credential response item for uniqueness proofs
+ *
+ * V4 is detected by presence of `issuer_schema_id`.
+ * V3 is detected by presence of `nullifier` (without `issuer_schema_id`).
+ * Session is detected by presence of `session_nullifier`.
+ */
+
+public enum ResponseItem: Equatable, Hashable {
+    
+    /**
+     * Protocol version 4.0 (World ID v4)
+     */
+    case v4(
+        /**
+         * Credential identifier (e.g., "orb", "face", "document")
+         */identifier: String, 
+        /**
+         * Signal hash (optional, included if signal was provided in request)
+         */signalHash: String?, 
+        /**
+         * Credential issuer schema ID
+         */issuerSchemaId: UInt64, 
+        /**
+         * Encoded World ID Proof
+         *
+         * The first 4 elements are the compressed Groth16 proof,
+         * and the 5th element is the Merkle root (all hex strings)
+         *
+         * This can be used directly with the `WorldIDVerifier.sol` contract to verify the proof.
+         */proof: [String], 
+        /**
+         * RP-scoped nullifier (hex string)
+         */nullifier: String, 
+        /**
+         * Minimum expiration timestamp for the proof
+         */expiresAtMin: UInt64
+    )
+    /**
+     * Session proof (World ID v4 sessions)
+     */
+    case session(
+        /**
+         * Credential identifier (e.g., "orb", "face", "document")
+         */identifier: String, 
+        /**
+         * Signal hash (optional, included if signal was provided in request)
+         */signalHash: String?, 
+        /**
+         * Credential issuer schema ID
+         */issuerSchemaId: UInt64, 
+        /**
+         * Encoded World ID Proof
+         *
+         * The first 4 elements are the compressed Groth16 proof,
+         * and the 5th element is the Merkle root (all hex strings)
+         *
+         * This can be used directly with the `WorldIDVerifier.sol` contract to verify the proof.
+         */proof: [String], 
+        /**
+         * Session nullifier
+         *
+         * - 1st element is the nullifier for the session
+         * - 2nd element is the generated action
+         */sessionNullifier: [String], 
+        /**
+         * Minimum expiration timestamp for the proof
+         */expiresAtMin: UInt64
+    )
+    /**
+     * Protocol version 3.0 (World ID v3 - legacy format)
+     */
+    case v3(
+        /**
+         * Credential identifier (e.g., "orb", "face")
+         */identifier: String, 
+        /**
+         * Signal hash (optional, included if signal was provided in request)
+         */signalHash: String?, 
+        /**
+         * ABI-encoded proof (hex string)
+         */proof: String, 
+        /**
+         * Merkle root (hex string)
+         */merkleRoot: String, 
+        /**
+         * Nullifier (hex string)
+         */nullifier: String
+    )
+
+
+
+}
+
+#if compiler(>=6)
+extension ResponseItem: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeResponseItem: FfiConverterRustBuffer {
+    typealias SwiftType = ResponseItem
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ResponseItem {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .v4(identifier: try FfiConverterString.read(from: &buf), signalHash: try FfiConverterOptionString.read(from: &buf), issuerSchemaId: try FfiConverterUInt64.read(from: &buf), proof: try FfiConverterSequenceString.read(from: &buf), nullifier: try FfiConverterString.read(from: &buf), expiresAtMin: try FfiConverterUInt64.read(from: &buf)
+        )
+        
+        case 2: return .session(identifier: try FfiConverterString.read(from: &buf), signalHash: try FfiConverterOptionString.read(from: &buf), issuerSchemaId: try FfiConverterUInt64.read(from: &buf), proof: try FfiConverterSequenceString.read(from: &buf), sessionNullifier: try FfiConverterSequenceString.read(from: &buf), expiresAtMin: try FfiConverterUInt64.read(from: &buf)
+        )
+        
+        case 3: return .v3(identifier: try FfiConverterString.read(from: &buf), signalHash: try FfiConverterOptionString.read(from: &buf), proof: try FfiConverterString.read(from: &buf), merkleRoot: try FfiConverterString.read(from: &buf), nullifier: try FfiConverterString.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: ResponseItem, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case let .v4(identifier,signalHash,issuerSchemaId,proof,nullifier,expiresAtMin):
+            writeInt(&buf, Int32(1))
+            FfiConverterString.write(identifier, into: &buf)
+            FfiConverterOptionString.write(signalHash, into: &buf)
+            FfiConverterUInt64.write(issuerSchemaId, into: &buf)
+            FfiConverterSequenceString.write(proof, into: &buf)
+            FfiConverterString.write(nullifier, into: &buf)
+            FfiConverterUInt64.write(expiresAtMin, into: &buf)
+            
+        
+        case let .session(identifier,signalHash,issuerSchemaId,proof,sessionNullifier,expiresAtMin):
+            writeInt(&buf, Int32(2))
+            FfiConverterString.write(identifier, into: &buf)
+            FfiConverterOptionString.write(signalHash, into: &buf)
+            FfiConverterUInt64.write(issuerSchemaId, into: &buf)
+            FfiConverterSequenceString.write(proof, into: &buf)
+            FfiConverterSequenceString.write(sessionNullifier, into: &buf)
+            FfiConverterUInt64.write(expiresAtMin, into: &buf)
+            
+        
+        case let .v3(identifier,signalHash,proof,merkleRoot,nullifier):
+            writeInt(&buf, Int32(3))
+            FfiConverterString.write(identifier, into: &buf)
+            FfiConverterOptionString.write(signalHash, into: &buf)
+            FfiConverterString.write(proof, into: &buf)
+            FfiConverterString.write(merkleRoot, into: &buf)
+            FfiConverterString.write(nullifier, into: &buf)
+            
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeResponseItem_lift(_ buf: RustBuffer) throws -> ResponseItem {
+    return try FfiConverterTypeResponseItem.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeResponseItem_lower(_ value: ResponseItem) -> RustBuffer {
+    return FfiConverterTypeResponseItem.lower(value)
+}
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
+public enum StatusWrapper: Equatable, Hashable {
+    
+    /**
+     * Waiting for World App to retrieve the request
+     */
+    case waitingForConnection
+    /**
+     * World App has retrieved the request, waiting for user confirmation
+     */
+    case awaitingConfirmation
+    /**
+     * User has confirmed and provided proof(s)
+     * For session proofs, `IDKitResult.session_id` will be `Some(id)`
+     */
+    case confirmed(result: IdKitResult
+    )
+    /**
+     * Request has failed
+     */
+    case failed(error: String
+    )
+
+
+
+}
+
+#if compiler(>=6)
+extension StatusWrapper: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeStatusWrapper: FfiConverterRustBuffer {
+    typealias SwiftType = StatusWrapper
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> StatusWrapper {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .waitingForConnection
+        
+        case 2: return .awaitingConfirmation
+        
+        case 3: return .confirmed(result: try FfiConverterTypeIDKitResult.read(from: &buf)
+        )
+        
+        case 4: return .failed(error: try FfiConverterString.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: StatusWrapper, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .waitingForConnection:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .awaitingConfirmation:
+            writeInt(&buf, Int32(2))
+        
+        
+        case let .confirmed(result):
+            writeInt(&buf, Int32(3))
+            FfiConverterTypeIDKitResult.write(result, into: &buf)
+            
+        
+        case let .failed(error):
+            writeInt(&buf, Int32(4))
+            FfiConverterString.write(error, into: &buf)
+            
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeStatusWrapper_lift(_ buf: RustBuffer) throws -> StatusWrapper {
+    return try FfiConverterTypeStatusWrapper.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeStatusWrapper_lower(_ value: StatusWrapper) -> RustBuffer {
+    return FfiConverterTypeStatusWrapper.lower(value)
+}
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
  * Verification level (for backward compatibility)
  */
 
@@ -820,6 +3097,13 @@ public enum VerificationLevel: Equatable, Hashable {
      * Secure document verification (secure document or orb)
      */
     case secureDocument
+    /**
+     * Invalid verification level (used to signal World App 4.0+ only)
+     *
+     * When this is sent, older World App versions will reject the request
+     * with an error, ensuring only 4.0+ versions can process the request.
+     */
+    case deprecated
 
 
 
@@ -849,6 +3133,8 @@ public struct FfiConverterTypeVerificationLevel: FfiConverterRustBuffer {
         
         case 5: return .secureDocument
         
+        case 6: return .deprecated
+        
         default: throw UniffiInternalError.unexpectedEnumCase
         }
     }
@@ -876,6 +3162,10 @@ public struct FfiConverterTypeVerificationLevel: FfiConverterRustBuffer {
         case .secureDocument:
             writeInt(&buf, Int32(5))
         
+        
+        case .deprecated:
+            writeInt(&buf, Int32(6))
+        
         }
     }
 }
@@ -896,6 +3186,294 @@ public func FfiConverterTypeVerificationLevel_lower(_ value: VerificationLevel) 
 }
 
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionUInt64: FfiConverterRustBuffer {
+    typealias SwiftType = UInt64?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterUInt64.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterUInt64.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
+    typealias SwiftType = String?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterString.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterString.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionData: FfiConverterRustBuffer {
+    typealias SwiftType = Data?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterData.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterData.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypeSignal: FfiConverterRustBuffer {
+    typealias SwiftType = Signal?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeSignal.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeSignal.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypeEnvironment: FfiConverterRustBuffer {
+    typealias SwiftType = Environment?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeEnvironment.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeEnvironment.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
+    typealias SwiftType = [String]
+
+    public static func write(_ value: [String], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterString.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [String] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [String]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterString.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeConstraintNode: FfiConverterRustBuffer {
+    typealias SwiftType = [ConstraintNode]
+
+    public static func write(_ value: [ConstraintNode], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeConstraintNode.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ConstraintNode] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [ConstraintNode]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeConstraintNode.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeResponseItem: FfiConverterRustBuffer {
+    typealias SwiftType = [ResponseItem]
+
+    public static func write(_ value: [ResponseItem], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeResponseItem.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ResponseItem] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [ResponseItem]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeResponseItem.read(from: &buf))
+        }
+        return seq
+    }
+}
+/**
+ * Entry point for creating a new session (no existing `session_id`)
+ */
+public func createSession(config: IdKitSessionConfig) -> IdKitBuilder  {
+    return try!  FfiConverterTypeIDKitBuilder_lift(try! rustCall() {
+    uniffi_idkit_fn_func_create_session(
+        FfiConverterTypeIDKitSessionConfig_lower(config),$0
+    )
+})
+}
+/**
+ * Gets the string representation of a credential type
+ */
+public func credentialToString(credential: CredentialType) -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_idkit_fn_func_credential_to_string(
+        FfiConverterTypeCredentialType_lower(credential),$0
+    )
+})
+}
+/**
+ * Hashes a Signal to a signal hash (0x-prefixed hex string).
+ *
+ * This is the same encoding used internally when constructing proof requests.
+ */
+public func hashSignalFfi(signal: Signal) -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_idkit_fn_func_hash_signal_ffi(
+        FfiConverterTypeSignal_lower(signal),$0
+    )
+})
+}
+/**
+ * Hashes input bytes using Keccak256, shifted right 8 bits to fit within the field prime.
+ *
+ * Returns raw bytes (32 bytes).
+ */
+public func hashToFieldFfi(input: Data) -> Data  {
+    return try!  FfiConverterData.lift(try! rustCall() {
+    uniffi_idkit_fn_func_hash_to_field_ffi(
+        FfiConverterData.lower(input),$0
+    )
+})
+}
+/**
+ * Deserializes an `IDKitResult` from JSON
+ *
+ * # Errors
+ *
+ * Returns an error if JSON deserialization fails
+ */
+public func idkitResultFromJson(json: String)throws  -> IdKitResult  {
+    return try  FfiConverterTypeIDKitResult_lift(try rustCallWithError(FfiConverterTypeIdkitError_lift) {
+    uniffi_idkit_fn_func_idkit_result_from_json(
+        FfiConverterString.lower(json),$0
+    )
+})
+}
+/**
+ * Serializes an `IDKitResult` to JSON
+ *
+ * # Errors
+ *
+ * Returns an error if JSON serialization fails
+ */
+public func idkitResultToJson(result: IdKitResult)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeIdkitError_lift) {
+    uniffi_idkit_fn_func_idkit_result_to_json(
+        FfiConverterTypeIDKitResult_lower(result),$0
+    )
+})
+}
+/**
+ * Entry point for proving an existing session
+ */
+public func proveSession(sessionId: String, config: IdKitSessionConfig) -> IdKitBuilder  {
+    return try!  FfiConverterTypeIDKitBuilder_lift(try! rustCall() {
+    uniffi_idkit_fn_func_prove_session(
+        FfiConverterString.lower(sessionId),
+        FfiConverterTypeIDKitSessionConfig_lower(config),$0
+    )
+})
+}
+/**
+ * Entry point for creating `IDKit` requests
+ */
+public func request(config: IdKitRequestConfig) -> IdKitBuilder  {
+    return try!  FfiConverterTypeIDKitBuilder_lift(try! rustCall() {
+    uniffi_idkit_fn_func_request(
+        FfiConverterTypeIDKitRequestConfig_lower(config),$0
+    )
+})
+}
+
 private enum InitializationResult {
     case ok
     case contractVersionMismatch
@@ -907,9 +3485,132 @@ private let initializationResult: InitializationResult = {
     // Get the bindings contract version from our ComponentInterface
     let bindings_contract_version = 30
     // Get the scaffolding contract version by calling the into the dylib
-    let scaffolding_contract_version = ffi_idkit_core_uniffi_contract_version()
+    let scaffolding_contract_version = ffi_idkit_uniffi_contract_version()
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
+    }
+    if (uniffi_idkit_checksum_func_create_session() != 52914) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_func_credential_to_string() != 22163) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_func_hash_signal_ffi() != 2942) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_func_hash_to_field_ffi() != 30328) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_func_idkit_result_from_json() != 51482) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_func_idkit_result_to_json() != 65487) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_func_prove_session() != 17850) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_func_request() != 54126) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_method_constraintnode_to_json() != 54484) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_method_credentialrequest_credential_type() != 63074) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_method_credentialrequest_expires_at_min() != 54935) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_method_credentialrequest_genesis_issued_at_min() != 33156) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_method_credentialrequest_get_signal_bytes() != 57834) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_method_credentialrequest_to_json() != 12653) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_method_idkitbuilder_constraints() != 39401) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_method_idkitbuilder_preset() != 40472) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_method_idkitrequestwrapper_connect_url() != 37454) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_method_idkitrequestwrapper_poll_status() != 4544) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_method_idkitrequestwrapper_request_id() != 56066) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_method_rpcontext_created_at() != 1287) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_method_rpcontext_expires_at() != 23095) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_method_rpcontext_nonce() != 15395) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_method_rpcontext_rp_id() != 9223) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_method_rpcontext_signature() != 34827) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_method_signal_as_bytes() != 58268) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_method_signal_as_string() != 53522) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_constructor_constraintnode_all() != 45947) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_constructor_constraintnode_any() != 35991) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_constructor_constraintnode_from_json() != 8810) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_constructor_constraintnode_item() != 49909) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_constructor_credentialrequest_from_json() != 24959) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_constructor_credentialrequest_new() != 33926) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_constructor_credentialrequest_with_expires_at_min() != 37176) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_constructor_credentialrequest_with_genesis_min() != 55242) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_constructor_credentialrequest_with_string_signal() != 30356) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_constructor_idkitbuilder_from_create_session() != 55274) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_constructor_idkitbuilder_from_prove_session() != 32009) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_constructor_idkitbuilder_from_request() != 13424) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_constructor_rpcontext_new() != 50798) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_constructor_signal_from_bytes() != 2569) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_constructor_signal_from_string() != 7997) {
+        return InitializationResult.apiChecksumMismatch
     }
 
     return InitializationResult.ok
@@ -917,7 +3618,7 @@ private let initializationResult: InitializationResult = {
 
 // Make the ensure init function public so that other modules which have external type references to
 // our types can call it.
-public func uniffiEnsureIdkitCoreInitialized() {
+public func uniffiEnsureIdkitInitialized() {
     switch initializationResult {
     case .ok:
         break
