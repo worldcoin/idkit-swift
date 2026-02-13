@@ -1171,9 +1171,17 @@ public protocol IdKitRequestWrapperProtocol: AnyObject, Sendable {
     func connectUrl()  -> String
     
     /**
-     * Polls the request for updates until completion
+     * Polls the request once for the current status.
+     *
+     * This method preserves the existing FFI signature for compatibility.
+     * `poll_interval_ms` and `timeout_ms` are ignored.
      */
     func pollStatus(pollIntervalMs: UInt64?, timeoutMs: UInt64?)  -> StatusWrapper
+    
+    /**
+     * Polls the request exactly once for updates.
+     */
+    func pollStatusOnce()  -> StatusWrapper
     
     /**
      * Returns the request ID for this request
@@ -1241,7 +1249,10 @@ open func connectUrl() -> String  {
 }
     
     /**
-     * Polls the request for updates until completion
+     * Polls the request once for the current status.
+     *
+     * This method preserves the existing FFI signature for compatibility.
+     * `poll_interval_ms` and `timeout_ms` are ignored.
      */
 open func pollStatus(pollIntervalMs: UInt64?, timeoutMs: UInt64?) -> StatusWrapper  {
     return try!  FfiConverterTypeStatusWrapper_lift(try! rustCall() {
@@ -1249,6 +1260,17 @@ open func pollStatus(pollIntervalMs: UInt64?, timeoutMs: UInt64?) -> StatusWrapp
             self.uniffiCloneHandle(),
         FfiConverterOptionUInt64.lower(pollIntervalMs),
         FfiConverterOptionUInt64.lower(timeoutMs),$0
+    )
+})
+}
+    
+    /**
+     * Polls the request exactly once for updates.
+     */
+open func pollStatusOnce() -> StatusWrapper  {
+    return try!  FfiConverterTypeStatusWrapper_lift(try! rustCall() {
+    uniffi_idkit_fn_method_idkitrequestwrapper_poll_status_once(
+            self.uniffiCloneHandle(),$0
     )
 })
 }
@@ -2993,7 +3015,7 @@ public enum StatusWrapper: Equatable, Hashable {
     /**
      * Request has failed
      */
-    case failed(error: String
+    case failed(error: AppError
     )
 
 
@@ -3021,7 +3043,7 @@ public struct FfiConverterTypeStatusWrapper: FfiConverterRustBuffer {
         case 3: return .confirmed(result: try FfiConverterTypeIDKitResult.read(from: &buf)
         )
         
-        case 4: return .failed(error: try FfiConverterString.read(from: &buf)
+        case 4: return .failed(error: try FfiConverterTypeAppError.read(from: &buf)
         )
         
         default: throw UniffiInternalError.unexpectedEnumCase
@@ -3047,7 +3069,7 @@ public struct FfiConverterTypeStatusWrapper: FfiConverterRustBuffer {
         
         case let .failed(error):
             writeInt(&buf, Int32(4))
-            FfiConverterString.write(error, into: &buf)
+            FfiConverterTypeAppError.write(error, into: &buf)
             
         }
     }
@@ -3540,7 +3562,10 @@ private let initializationResult: InitializationResult = {
     if (uniffi_idkit_checksum_method_idkitrequestwrapper_connect_url() != 37454) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_method_idkitrequestwrapper_poll_status() != 4544) {
+    if (uniffi_idkit_checksum_method_idkitrequestwrapper_poll_status() != 56441) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_method_idkitrequestwrapper_poll_status_once() != 10322) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_idkit_checksum_method_idkitrequestwrapper_request_id() != 56066) {

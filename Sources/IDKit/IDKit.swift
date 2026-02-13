@@ -1,254 +1,354 @@
 import Foundation
 
-/// Main entry point for IDKit Swift SDK
+public typealias IDKitRequestConfig = IdKitRequestConfig
+public typealias IDKitSessionConfig = IdKitSessionConfig
+public typealias IDKitResult = IdKitResult
+
+/// Main entry point for IDKit Swift SDK.
 public enum IDKit {
-    /// Version of the IDKit SDK
     public static let version = "4.0.0"
 
-    /// Creates a new IDKit request builder for uniqueness proofs
-    ///
-    /// This is the main entry point for creating World ID verification requests.
-    /// Use the builder pattern with constraints to specify which credentials to accept.
-    ///
-    /// - Parameter config: Request configuration
-    /// - Returns: An IDKitBuilder instance
-    ///
-    /// Example:
-    /// ```swift
-    /// let request = try IDKit.request(config: config)
-    ///     .constraints(anyOf(CredentialRequest.create(.orb), CredentialRequest.create(.face)))
-    /// ```
+    /// Creates a builder for uniqueness proof requests.
     public static func request(config: IDKitRequestConfig) -> IDKitBuilder {
-        IdKitBuilder.fromRequest(config: config)
+        IDKitBuilder(inner: IdKitBuilder.fromRequest(config: config))
     }
 
-    /// Creates a new IDKit builder for creating a new session
-    ///
-    /// Use this when creating a new session for a user who doesn't have one yet.
-    /// The response will include a session_id that should be saved for future session proofs.
-    ///
-    /// - Parameter config: Session configuration
-    /// - Returns: An IDKitBuilder instance
-    ///
-    /// Example:
-    /// ```swift
-    /// let request = try IDKit.createSession(config: sessionConfig)
-    ///     .constraints(anyOf(CredentialRequest.create(.orb), CredentialRequest.create(.face)))
-    /// let result = try request.pollStatus()
-    /// // Save result.sessionId for future sessions
-    /// ```
+    /// Creates a builder for creating a new session.
     public static func createSession(config: IDKitSessionConfig) -> IDKitBuilder {
-        IdKitBuilder.fromCreateSession(config: config)
+        IDKitBuilder(inner: IdKitBuilder.fromCreateSession(config: config))
     }
 
-    /// Creates a new IDKit builder for proving an existing session
-    ///
-    /// Use this when a returning user needs to prove they own an existing session.
-    ///
-    /// - Parameters:
-    ///   - sessionId: The session ID from a previous session creation
-    ///   - config: Session configuration
-    /// - Returns: An IDKitBuilder instance
-    ///
-    /// Example:
-    /// ```swift
-    /// let request = try IDKit.proveSession(sessionId: savedSessionId, config: sessionConfig)
-    ///     .constraints(anyOf(CredentialRequest.create(.orb), CredentialRequest.create(.face)))
-    /// ```
+    /// Creates a builder for proving an existing session.
     public static func proveSession(sessionId: String, config: IDKitSessionConfig) -> IDKitBuilder {
-        IdKitBuilder.fromProveSession(sessionId: sessionId, config: config)
+        IDKitBuilder(inner: IdKitBuilder.fromProveSession(sessionId: sessionId, config: config))
+    }
+
+    /// Hashes a string signal to the canonical 0x-prefixed field element string.
+    public static func hashSignal(_ signal: String) -> String {
+        hashSignalFfi(signal: Signal.fromString(s: signal))
+    }
+
+    /// Hashes raw signal bytes to the canonical 0x-prefixed field element string.
+    public static func hashSignal(_ signal: Data) -> String {
+        hashSignalFfi(signal: Signal.fromBytes(bytes: signal))
     }
 }
 
-// MARK: - CredentialRequest convenience extension
-//
-// UniFFI generates static methods from Rust constructors:
-//   - CredentialRequest.new(credentialType:signal:) - takes Signal?
-//   - CredentialRequest.withStringSignal(credentialType:signal:) - takes String?
-//
-// The static `create` method below provides a cleaner positional API:
-//   CredentialRequest.create(.orb, signal: "test")
+/// Builder wrapper that returns canonical `IDKitRequest` values.
+public final class IDKitBuilder {
+    private let inner: IdKitBuilder
+
+    fileprivate init(inner: IdKitBuilder) {
+        self.inner = inner
+    }
+
+    public func constraints(_ constraints: ConstraintNode) throws -> IDKitRequest {
+        let request = try inner.constraints(constraints: constraints)
+        return try IDKitRequest(inner: request)
+    }
+
+    public func preset(_ preset: Preset) throws -> IDKitRequest {
+        let request = try inner.preset(preset: preset)
+        return try IDKitRequest(inner: request)
+    }
+}
+
+/// One-shot polling status returned by `IDKitRequest.pollStatusOnce()`.
+public enum IDKitStatus: Equatable {
+    case waitingForConnection
+    case awaitingConfirmation
+    case confirmed(IDKitResult)
+    case failed(IDKitErrorCode)
+}
+
+/// Result returned by `IDKitRequest.pollUntilCompletion(options:)`.
+public enum IDKitCompletionResult: Equatable {
+    case success(IDKitResult)
+    case failure(IDKitErrorCode)
+}
+
+/// Polling options for `pollUntilCompletion`.
+public struct IDKitPollOptions: Equatable {
+    public var pollIntervalMs: UInt64
+    public var timeoutMs: UInt64
+
+    public init(pollIntervalMs: UInt64 = 1_000, timeoutMs: UInt64 = 300_000) {
+        self.pollIntervalMs = pollIntervalMs
+        self.timeoutMs = timeoutMs
+    }
+}
+
+/// Canonical error codes exposed by the Swift API.
+///
+/// World App errors mirror JS `IDKitErrorCodes` naming and values.
+/// `timeout` and `cancelled` are client-side errors.
+public enum IDKitErrorCode: String, Equatable {
+    case userRejected = "user_rejected"
+    case verificationRejected = "verification_rejected"
+    case credentialUnavailable = "credential_unavailable"
+    case malformedRequest = "malformed_request"
+    case invalidNetwork = "invalid_network"
+    case inclusionProofPending = "inclusion_proof_pending"
+    case inclusionProofFailed = "inclusion_proof_failed"
+    case unexpectedResponse = "unexpected_response"
+    case connectionFailed = "connection_failed"
+    case maxVerificationsReached = "max_verifications_reached"
+    case failedByHostApp = "failed_by_host_app"
+    case genericError = "generic_error"
+    case timeout = "timeout"
+    case cancelled = "cancelled"
+
+    static func from(appError: AppError) -> Self {
+        switch appError {
+        case .userRejected:
+            .userRejected
+        case .verificationRejected:
+            .verificationRejected
+        case .credentialUnavailable:
+            .credentialUnavailable
+        case .malformedRequest:
+            .malformedRequest
+        case .invalidNetwork:
+            .invalidNetwork
+        case .inclusionProofPending:
+            .inclusionProofPending
+        case .inclusionProofFailed:
+            .inclusionProofFailed
+        case .unexpectedResponse:
+            .unexpectedResponse
+        case .connectionFailed:
+            .connectionFailed
+        case .maxVerificationsReached:
+            .maxVerificationsReached
+        case .failedByHostApp:
+            .failedByHostApp
+        case .genericError:
+            .genericError
+        }
+    }
+}
+
+/// Client-side errors raised while constructing canonical wrappers.
+public enum IDKitClientError: Error, LocalizedError {
+    case invalidConnectorURL(String)
+    case invalidRequestID(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .invalidConnectorURL(let value):
+            return "Invalid connector URL: \(value)"
+        case .invalidRequestID(let value):
+            return "Invalid request ID: \(value)"
+        }
+    }
+}
+
+/// Canonical request wrapper.
+public final class IDKitRequest {
+    public let connectorURL: URL
+    public let requestID: UUID
+
+    private let pollOnceImpl: @Sendable () async -> IDKitStatus
+
+    fileprivate init(inner: IdKitRequestWrapper) throws {
+        let rawURL = inner.connectUrl()
+        guard let connectorURL = URL(string: rawURL) else {
+            throw IDKitClientError.invalidConnectorURL(rawURL)
+        }
+
+        let rawRequestID = inner.requestId()
+        guard let requestID = UUID(uuidString: rawRequestID) else {
+            throw IDKitClientError.invalidRequestID(rawRequestID)
+        }
+
+        self.connectorURL = connectorURL
+        self.requestID = requestID
+        self.pollOnceImpl = {
+            Self.mapStatus(inner.pollStatusOnce())
+        }
+    }
+
+    // Internal initializer for deterministic polling tests.
+    init(connectorURL: URL, requestID: UUID, pollOnce: @escaping @Sendable () async -> IDKitStatus) {
+        self.connectorURL = connectorURL
+        self.requestID = requestID
+        self.pollOnceImpl = pollOnce
+    }
+
+    /// Polls the request exactly once.
+    public func pollStatusOnce() async -> IDKitStatus {
+        await pollOnceImpl()
+    }
+
+    /// Polls repeatedly until a terminal result, timeout, or cancellation.
+    public func pollUntilCompletion(options: IDKitPollOptions = IDKitPollOptions()) async -> IDKitCompletionResult {
+        let pollIntervalMs = max(options.pollIntervalMs, 1)
+        let startTime = Date()
+
+        while true {
+            if Task.isCancelled {
+                return .failure(.cancelled)
+            }
+
+            let elapsedMs = Date().timeIntervalSince(startTime) * 1_000
+            if elapsedMs >= Double(options.timeoutMs) {
+                return .failure(.timeout)
+            }
+
+            let status = await pollStatusOnce()
+            switch status {
+            case .confirmed(let result):
+                return .success(result)
+            case .failed(let error):
+                return .failure(error)
+            case .waitingForConnection, .awaitingConfirmation:
+                break
+            }
+
+            do {
+                try await Task.sleep(nanoseconds: pollIntervalMs * 1_000_000)
+            } catch {
+                return .failure(.cancelled)
+            }
+        }
+    }
+
+    static func mapStatus(_ status: StatusWrapper) -> IDKitStatus {
+        switch status {
+        case .waitingForConnection:
+            .waitingForConnection
+        case .awaitingConfirmation:
+            .awaitingConfirmation
+        case .confirmed(let result):
+            .confirmed(result)
+        case .failed(let error):
+            .failed(IDKitErrorCode.from(appError: error))
+        }
+    }
+}
+
+public struct CredentialRequestOptions: Equatable {
+    public var signal: String?
+    public var genesisIssuedAtMin: UInt64?
+    public var expiresAtMin: UInt64?
+
+    public init(
+        signal: String? = nil,
+        genesisIssuedAtMin: UInt64? = nil,
+        expiresAtMin: UInt64? = nil
+    ) {
+        self.signal = signal
+        self.genesisIssuedAtMin = genesisIssuedAtMin
+        self.expiresAtMin = expiresAtMin
+    }
+}
 
 public extension CredentialRequest {
-    /// Creates a CredentialRequest for a credential type with an optional string signal
-    ///
-    /// This is a convenience factory method with a cleaner positional API.
-    ///
-    /// - Parameters:
-    ///   - type: The credential type (e.g., .orb, .face)
-    ///   - signal: Optional signal string for cryptographic binding
-    /// - Returns: A CredentialRequest instance
-    ///
-    /// Example:
-    /// ```swift
-    /// let orb = CredentialRequest.create(.orb, signal: "user-123")
-    /// let face = CredentialRequest.create(.face)
-    /// ```
+    /// Creates a `CredentialRequest` with optional string signal.
     static func create(_ type: CredentialType, signal: String? = nil) -> CredentialRequest {
         CredentialRequest.withStringSignal(credentialType: type, signal: signal)
     }
+
+    /// Creates a `CredentialRequest` with options parity with JS core:
+    /// `signal`, `genesis_issued_at_min`, and `expires_at_min`.
+    static func create(_ type: CredentialType, options: CredentialRequestOptions) throws -> CredentialRequest {
+        if options.genesisIssuedAtMin == nil, options.expiresAtMin == nil {
+            return CredentialRequest.withStringSignal(credentialType: type, signal: options.signal)
+        }
+
+        let payload = CredentialRequestJSON(
+            type: type.requestType,
+            signal: options.signal,
+            genesisIssuedAtMin: options.genesisIssuedAtMin,
+            expiresAtMin: options.expiresAtMin
+        )
+        let encoded = try JSONEncoder().encode(payload)
+        let json = String(decoding: encoded, as: UTF8.self)
+        return try CredentialRequest.fromJson(json: json)
+    }
 }
 
-// MARK: - Convenience wrappers around UniFFI-generated types
-
-/// Creates an OR constraint - at least one child must be satisfied
-///
-/// - Parameter items: The request items (at least one must be satisfied)
-/// - Returns: A ConstraintNode representing an "any" constraint
-///
-/// Example:
-/// ```swift
-/// let constraint = anyOf(CredentialRequest.create(.orb), CredentialRequest.create(.face))
-/// ```
 public func anyOf(_ items: CredentialRequest...) -> ConstraintNode {
     ConstraintNode.any(nodes: items.map { ConstraintNode.item(request: $0) })
 }
 
-/// Creates an OR constraint from an array of request items
-///
-/// - Parameter items: Array of request items (at least one must be satisfied)
-/// - Returns: A ConstraintNode representing an "any" constraint
 public func anyOf(_ items: [CredentialRequest]) -> ConstraintNode {
     ConstraintNode.any(nodes: items.map { ConstraintNode.item(request: $0) })
 }
 
-/// Creates an OR constraint from constraint nodes
-///
-/// - Parameter nodes: The constraint nodes (at least one must be satisfied)
-/// - Returns: A ConstraintNode representing an "any" constraint
-///
-/// Example:
-/// ```swift
-/// let constraint = anyOf(nodes: ConstraintNode.item(request: orb), ConstraintNode.item(request: face))
-/// ```
 public func anyOf(nodes: ConstraintNode...) -> ConstraintNode {
     ConstraintNode.any(nodes: nodes)
 }
 
-/// Creates an OR constraint from an array of constraint nodes
-///
-/// - Parameter nodes: Array of constraint nodes (at least one must be satisfied)
-/// - Returns: A ConstraintNode representing an "any" constraint
 public func anyOf(nodes: [ConstraintNode]) -> ConstraintNode {
     ConstraintNode.any(nodes: nodes)
 }
 
-/// Creates an AND constraint - all children must be satisfied
-///
-/// - Parameter items: The request items (all must be satisfied)
-/// - Returns: A ConstraintNode representing an "all" constraint
-///
-/// Example:
-/// ```swift
-/// let constraint = allOf(CredentialRequest.create(.orb), CredentialRequest.create(.document))
-/// ```
 public func allOf(_ items: CredentialRequest...) -> ConstraintNode {
     ConstraintNode.all(nodes: items.map { ConstraintNode.item(request: $0) })
 }
 
-/// Creates an AND constraint from an array of request items
-///
-/// - Parameter items: Array of request items (all must be satisfied)
-/// - Returns: A ConstraintNode representing an "all" constraint
 public func allOf(_ items: [CredentialRequest]) -> ConstraintNode {
     ConstraintNode.all(nodes: items.map { ConstraintNode.item(request: $0) })
 }
 
-/// Creates an AND constraint from constraint nodes
-///
-/// - Parameter nodes: The constraint nodes (all must be satisfied)
-/// - Returns: A ConstraintNode representing an "all" constraint
-///
-/// Example:
-/// ```swift
-/// let constraint = allOf(nodes: orbNode, anyOf(document, secureDocument))
-/// ```
 public func allOf(nodes: ConstraintNode...) -> ConstraintNode {
     ConstraintNode.all(nodes: nodes)
 }
 
-/// Creates an AND constraint from an array of constraint nodes
-///
-/// - Parameter nodes: Array of constraint nodes (all must be satisfied)
-/// - Returns: A ConstraintNode representing an "all" constraint
 public func allOf(nodes: [ConstraintNode]) -> ConstraintNode {
     ConstraintNode.all(nodes: nodes)
 }
 
-// MARK: - Preset helpers
-
-/// Creates an OrbLegacy preset for World ID 3.0 legacy support
-///
-/// This preset creates an IDKit request compatible with both World ID 4.0 and 3.0 protocols.
-/// Use this when you need backward compatibility with older World App versions.
-///
-/// - Parameter signal: Optional signal string for cryptographic binding
-/// - Returns: An OrbLegacy preset
-///
-/// Example:
-/// ```swift
-/// let request = try IDKit.request(config: config).preset(preset: orbLegacy(signal: "user-123"))
-/// ```
 public func orbLegacy(signal: String? = nil) -> Preset {
     .orbLegacy(signal: signal)
 }
 
-/// Creates a SecureDocumentLegacy preset for World ID 3.0 legacy support
-///
-/// This preset creates an IDKit request compatible with both World ID 4.0 and 3.0 protocols.
-/// Use this when you need backward compatibility with older World App versions.
-///
-/// - Parameter signal: Optional signal string for cryptographic binding
-/// - Returns: A SecureDocumentLegacy preset
-///
-/// Example:
-/// ```swift
-/// let request = try IDKit.request(config: config).preset(preset: secureDocumentLegacy(signal: "user-123"))
-/// ```
 public func secureDocumentLegacy(signal: String? = nil) -> Preset {
     .secureDocumentLegacy(signal: signal)
 }
 
-/// Creates a DocumentLegacy preset for World ID 3.0 legacy support
-///
-/// This preset creates an IDKit request compatible with both World ID 4.0 and 3.0 protocols.
-/// Use this when you need backward compatibility with older World App versions.
-///
-/// - Parameter signal: Optional signal string for cryptographic binding
-/// - Returns: A DocumentLegacy preset
-///
-/// Example:
-/// ```swift
-/// let request = try IDKit.request(config: config).preset(preset: documentLegacy(signal: "user-123"))
-/// ```
 public func documentLegacy(signal: String? = nil) -> Preset {
     .documentLegacy(signal: signal)
 }
 
-// MARK: - Hashing Utilities
+private struct CredentialRequestJSON: Encodable {
+    let type: String
+    let signal: String?
+    let genesisIssuedAtMin: UInt64?
+    let expiresAtMin: UInt64?
 
-public extension IDKit {
-    /// Hashes a Signal to its hash representation.
-    /// This is the same hashing used internally when constructing proof requests.
-    ///
-    /// - Parameter signal: The signal to hash
-    /// - Returns: A 0x-prefixed hex string
-    static func hashSignal(_ signal: Signal) -> String {
-        hashSignalFfi(signal: signal)
+    enum CodingKeys: String, CodingKey {
+        case type
+        case signal
+        case genesisIssuedAtMin = "genesis_issued_at_min"
+        case expiresAtMin = "expires_at_min"
     }
 }
 
-// MARK: - Signal convenience extensions
+private extension CredentialType {
+    var requestType: String {
+        switch self {
+        case .orb:
+            return "orb"
+        case .face:
+            return "face"
+        case .secureDocument:
+            return "secure_document"
+        case .document:
+            return "document"
+        case .device:
+            return "device"
+        }
+    }
+}
 
 public extension Signal {
-    /// Returns the signal bytes as Foundation Data
     var bytesData: Data {
         Data(self.asBytes())
     }
 
-    /// Returns the signal as a string if it's valid UTF-8, nil otherwise
     var stringValue: String? {
         self.asString()
     }
 }
-

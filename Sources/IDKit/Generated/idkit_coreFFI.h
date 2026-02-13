@@ -393,6 +393,11 @@ RustBuffer uniffi_idkit_fn_method_idkitrequestwrapper_connect_url(uint64_t ptr, 
 RustBuffer uniffi_idkit_fn_method_idkitrequestwrapper_poll_status(uint64_t ptr, RustBuffer poll_interval_ms, RustBuffer timeout_ms, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITREQUESTWRAPPER_POLL_STATUS_ONCE
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITREQUESTWRAPPER_POLL_STATUS_ONCE
+RustBuffer uniffi_idkit_fn_method_idkitrequestwrapper_poll_status_once(uint64_t ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITREQUESTWRAPPER_REQUEST_ID
 #define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITREQUESTWRAPPER_REQUEST_ID
 RustBuffer uniffi_idkit_fn_method_idkitrequestwrapper_request_id(uint64_t ptr, RustCallStatus *_Nonnull out_status
@@ -873,6 +878,12 @@ uint16_t uniffi_idkit_checksum_method_idkitrequestwrapper_connect_url(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_IDKITREQUESTWRAPPER_POLL_STATUS
 #define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_IDKITREQUESTWRAPPER_POLL_STATUS
 uint16_t uniffi_idkit_checksum_method_idkitrequestwrapper_poll_status(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_IDKITREQUESTWRAPPER_POLL_STATUS_ONCE
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_IDKITREQUESTWRAPPER_POLL_STATUS_ONCE
+uint16_t uniffi_idkit_checksum_method_idkitrequestwrapper_poll_status_once(void
     
 );
 #endif
