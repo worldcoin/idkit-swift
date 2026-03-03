@@ -6,7 +6,7 @@ public typealias IDKitResult = IdKitResult
 
 /// Main entry point for IDKit Swift SDK.
 public enum IDKit {
-    public static let version = "4.0.3"
+    public static let version = "4.0.4"
 
     /// Creates a builder for uniqueness proof requests.
     public static func request(config: IDKitRequestConfig) -> IDKitBuilder {
@@ -343,6 +343,13 @@ public func secureDocumentLegacy(signal: String? = nil) -> Preset {
 /// This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
 public func documentLegacy(signal: String? = nil) -> Preset {
     .documentLegacy(signal: signal)
+}
+
+/// Returns the device legacy preset.
+///
+/// This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
+public func deviceLegacy(signal: String? = nil) -> Preset {
+    .deviceLegacy(signal: signal)
 }
 
 /// Returns the selfie check legacy preset.

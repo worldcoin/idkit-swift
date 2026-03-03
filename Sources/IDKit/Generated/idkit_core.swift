@@ -2781,6 +2781,20 @@ public enum Preset: Equatable, Hashable {
          * Can be a plain string or hex-encoded ABI value (with 0x prefix).
          */signal: String?
     )
+    /**
+     * Device verification
+     *
+     * Requests orb or device credentials, with optional signal.
+     * The signal can be either a plain string or a hex-encoded ABI value (with 0x prefix).
+     *
+     * This preset only returns World ID 3.0 proofs. Use it for compatibility with older `IDKit` versions.
+     */
+    case deviceLegacy(
+        /**
+         * Optional signal to include in the proof.
+         * Can be a plain string or hex-encoded ABI value (with 0x prefix).
+         */signal: String?
+    )
 
 
 
@@ -2812,6 +2826,9 @@ public struct FfiConverterTypePreset: FfiConverterRustBuffer {
         case 4: return .selfieCheckLegacy(signal: try FfiConverterOptionString.read(from: &buf)
         )
         
+        case 5: return .deviceLegacy(signal: try FfiConverterOptionString.read(from: &buf)
+        )
+        
         default: throw UniffiInternalError.unexpectedEnumCase
         }
     }
@@ -2837,6 +2854,11 @@ public struct FfiConverterTypePreset: FfiConverterRustBuffer {
         
         case let .selfieCheckLegacy(signal):
             writeInt(&buf, Int32(4))
+            FfiConverterOptionString.write(signal, into: &buf)
+            
+        
+        case let .deviceLegacy(signal):
+            writeInt(&buf, Int32(5))
             FfiConverterOptionString.write(signal, into: &buf)
             
         }
