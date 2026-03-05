@@ -1848,6 +1848,10 @@ public struct IdKitRequestConfig {
      */
     public var overrideConnectBaseUrl: String?
     /**
+     * Optional deep-link callback URL appended as `return_to` on the connector URL
+     */
+    public var returnTo: String?
+    /**
      * Optional environment override (defaults to Production)
      */
     public var environment: Environment?
@@ -1879,6 +1883,9 @@ public struct IdKitRequestConfig {
          * Optional override for the connect base URL (e.g., for staging environments)
          */overrideConnectBaseUrl: String?, 
         /**
+         * Optional deep-link callback URL appended as `return_to` on the connector URL
+         */returnTo: String?, 
+        /**
          * Optional environment override (defaults to Production)
          */environment: Environment?) {
         self.appId = appId
@@ -1888,6 +1895,7 @@ public struct IdKitRequestConfig {
         self.bridgeUrl = bridgeUrl
         self.allowLegacyProofs = allowLegacyProofs
         self.overrideConnectBaseUrl = overrideConnectBaseUrl
+        self.returnTo = returnTo
         self.environment = environment
     }
 
@@ -1912,6 +1920,7 @@ public struct FfiConverterTypeIDKitRequestConfig: FfiConverterRustBuffer {
                 bridgeUrl: FfiConverterOptionString.read(from: &buf), 
                 allowLegacyProofs: FfiConverterBool.read(from: &buf), 
                 overrideConnectBaseUrl: FfiConverterOptionString.read(from: &buf), 
+                returnTo: FfiConverterOptionString.read(from: &buf), 
                 environment: FfiConverterOptionTypeEnvironment.read(from: &buf)
         )
     }
@@ -1924,6 +1933,7 @@ public struct FfiConverterTypeIDKitRequestConfig: FfiConverterRustBuffer {
         FfiConverterOptionString.write(value.bridgeUrl, into: &buf)
         FfiConverterBool.write(value.allowLegacyProofs, into: &buf)
         FfiConverterOptionString.write(value.overrideConnectBaseUrl, into: &buf)
+        FfiConverterOptionString.write(value.returnTo, into: &buf)
         FfiConverterOptionTypeEnvironment.write(value.environment, into: &buf)
     }
 }
@@ -2090,6 +2100,10 @@ public struct IdKitSessionConfig {
      */
     public var overrideConnectBaseUrl: String?
     /**
+     * Optional deep-link callback URL appended as `return_to` on the connector URL
+     */
+    public var returnTo: String?
+    /**
      * Optional environment override (defaults to Production)
      */
     public var environment: Environment?
@@ -2113,6 +2127,9 @@ public struct IdKitSessionConfig {
          * Optional override for the connect base URL (e.g., for staging environments)
          */overrideConnectBaseUrl: String?, 
         /**
+         * Optional deep-link callback URL appended as `return_to` on the connector URL
+         */returnTo: String?, 
+        /**
          * Optional environment override (defaults to Production)
          */environment: Environment?) {
         self.appId = appId
@@ -2120,6 +2137,7 @@ public struct IdKitSessionConfig {
         self.actionDescription = actionDescription
         self.bridgeUrl = bridgeUrl
         self.overrideConnectBaseUrl = overrideConnectBaseUrl
+        self.returnTo = returnTo
         self.environment = environment
     }
 
@@ -2142,6 +2160,7 @@ public struct FfiConverterTypeIDKitSessionConfig: FfiConverterRustBuffer {
                 actionDescription: FfiConverterOptionString.read(from: &buf), 
                 bridgeUrl: FfiConverterOptionString.read(from: &buf), 
                 overrideConnectBaseUrl: FfiConverterOptionString.read(from: &buf), 
+                returnTo: FfiConverterOptionString.read(from: &buf), 
                 environment: FfiConverterOptionTypeEnvironment.read(from: &buf)
         )
     }
@@ -2152,6 +2171,7 @@ public struct FfiConverterTypeIDKitSessionConfig: FfiConverterRustBuffer {
         FfiConverterOptionString.write(value.actionDescription, into: &buf)
         FfiConverterOptionString.write(value.bridgeUrl, into: &buf)
         FfiConverterOptionString.write(value.overrideConnectBaseUrl, into: &buf)
+        FfiConverterOptionString.write(value.returnTo, into: &buf)
         FfiConverterOptionTypeEnvironment.write(value.environment, into: &buf)
     }
 }
