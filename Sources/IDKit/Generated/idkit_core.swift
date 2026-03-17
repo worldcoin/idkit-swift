@@ -1745,7 +1745,7 @@ public struct BridgeResponseV1: Equatable, Hashable {
     /**
      * The verification level used to generate the proof
      */
-    public var verificationLevel: CredentialType
+    public var verificationLevel: VerificationLevel
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -1761,7 +1761,7 @@ public struct BridgeResponseV1: Equatable, Hashable {
          */nullifierHash: String, 
         /**
          * The verification level used to generate the proof
-         */verificationLevel: CredentialType) {
+         */verificationLevel: VerificationLevel) {
         self.proof = proof
         self.merkleRoot = merkleRoot
         self.nullifierHash = nullifierHash
@@ -1785,7 +1785,7 @@ public struct FfiConverterTypeBridgeResponseV1: FfiConverterRustBuffer {
                 proof: FfiConverterString.read(from: &buf), 
                 merkleRoot: FfiConverterString.read(from: &buf), 
                 nullifierHash: FfiConverterString.read(from: &buf), 
-                verificationLevel: FfiConverterTypeCredentialType.read(from: &buf)
+                verificationLevel: FfiConverterTypeVerificationLevel.read(from: &buf)
         )
     }
 
@@ -1793,7 +1793,7 @@ public struct FfiConverterTypeBridgeResponseV1: FfiConverterRustBuffer {
         FfiConverterString.write(value.proof, into: &buf)
         FfiConverterString.write(value.merkleRoot, into: &buf)
         FfiConverterString.write(value.nullifierHash, into: &buf)
-        FfiConverterTypeCredentialType.write(value.verificationLevel, into: &buf)
+        FfiConverterTypeVerificationLevel.write(value.verificationLevel, into: &buf)
     }
 }
 
@@ -2375,25 +2375,21 @@ public func FfiConverterTypeAppError_lower(_ value: AppError) -> RustBuffer {
 public enum CredentialType: Equatable, Hashable {
     
     /**
-     * Orb credential
+     * Proof of human credential
      */
-    case orb
+    case proofOfHuman
     /**
      * Face credential
      */
     case face
     /**
-     * Secure NFC document with active or passive authentication, eID, or a Japanese MNC
+     * Passport credential (ICAO 9303 compliant travel document)
      */
-    case secureDocument
+    case passport
     /**
-     * NFC document without authentication
+     * MNC (My Number Card) credential
      */
-    case document
-    /**
-     * Device-based credential
-     */
-    case device
+    case mnc
 
 
 
@@ -2413,15 +2409,13 @@ public struct FfiConverterTypeCredentialType: FfiConverterRustBuffer {
         let variant: Int32 = try readInt(&buf)
         switch variant {
         
-        case 1: return .orb
+        case 1: return .proofOfHuman
         
         case 2: return .face
         
-        case 3: return .secureDocument
+        case 3: return .passport
         
-        case 4: return .document
-        
-        case 5: return .device
+        case 4: return .mnc
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -2431,7 +2425,7 @@ public struct FfiConverterTypeCredentialType: FfiConverterRustBuffer {
         switch value {
         
         
-        case .orb:
+        case .proofOfHuman:
             writeInt(&buf, Int32(1))
         
         
@@ -2439,16 +2433,12 @@ public struct FfiConverterTypeCredentialType: FfiConverterRustBuffer {
             writeInt(&buf, Int32(2))
         
         
-        case .secureDocument:
+        case .passport:
             writeInt(&buf, Int32(3))
         
         
-        case .document:
+        case .mnc:
             writeInt(&buf, Int32(4))
-        
-        
-        case .device:
-            writeInt(&buf, Int32(5))
         
         }
     }
@@ -2918,7 +2908,7 @@ public enum ResponseItem: Equatable, Hashable {
      */
     case v4(
         /**
-         * Credential identifier (e.g., "orb", "face", "document")
+         * Credential identifier (e.g., `proof_of_human`, `face`, `passport`, `mnc`)
          */identifier: String, 
         /**
          * Signal hash (optional, included if signal was provided in request)
@@ -2946,7 +2936,7 @@ public enum ResponseItem: Equatable, Hashable {
      */
     case session(
         /**
-         * Credential identifier (e.g., "orb", "face", "document")
+         * Credential identifier (e.g., `proof_of_human`, `face`, `passport`, `mnc`)
          */identifier: String, 
         /**
          * Signal hash (optional, included if signal was provided in request)
@@ -2977,7 +2967,7 @@ public enum ResponseItem: Equatable, Hashable {
      */
     case v3(
         /**
-         * Credential identifier (e.g., "orb", "face")
+         * Credential identifier (e.g., `proof_of_human`, `face`)
          */identifier: String, 
         /**
          * Signal hash (optional, included if signal was provided in request)
@@ -3100,6 +3090,11 @@ public enum StatusWrapper: Equatable, Hashable {
      */
     case failed(error: AppError
     )
+    /**
+     * Network/transport error — safe to retry
+     */
+    case networkingError(error: AppError
+    )
 
 
 
@@ -3129,6 +3124,9 @@ public struct FfiConverterTypeStatusWrapper: FfiConverterRustBuffer {
         case 4: return .failed(error: try FfiConverterTypeAppError.read(from: &buf)
         )
         
+        case 5: return .networkingError(error: try FfiConverterTypeAppError.read(from: &buf)
+        )
+        
         default: throw UniffiInternalError.unexpectedEnumCase
         }
     }
@@ -3152,6 +3150,11 @@ public struct FfiConverterTypeStatusWrapper: FfiConverterRustBuffer {
         
         case let .failed(error):
             writeInt(&buf, Int32(4))
+            FfiConverterTypeAppError.write(error, into: &buf)
+            
+        
+        case let .networkingError(error):
+            writeInt(&buf, Int32(5))
             FfiConverterTypeAppError.write(error, into: &buf)
             
         }
