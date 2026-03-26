@@ -75,7 +75,7 @@ public struct IDKitPollOptions: Equatable {
     public var pollIntervalMs: UInt64
     public var timeoutMs: UInt64
 
-    public init(pollIntervalMs: UInt64 = 1_000, timeoutMs: UInt64 = 300_000) {
+    public init(pollIntervalMs: UInt64 = 1_000, timeoutMs: UInt64 = 900_000) {
         self.pollIntervalMs = pollIntervalMs
         self.timeoutMs = timeoutMs
     }

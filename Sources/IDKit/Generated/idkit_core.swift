@@ -1855,6 +1855,10 @@ public struct IdKitRequestConfig {
      * Optional environment override (defaults to Production)
      */
     public var environment: Environment?
+    /**
+     * Optional connect URL mode (defaults to `Default`)
+     */
+    public var connectUrlMode: ConnectUrlMode?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -1887,7 +1891,10 @@ public struct IdKitRequestConfig {
          */returnTo: String?, 
         /**
          * Optional environment override (defaults to Production)
-         */environment: Environment?) {
+         */environment: Environment?, 
+        /**
+         * Optional connect URL mode (defaults to `Default`)
+         */connectUrlMode: ConnectUrlMode?) {
         self.appId = appId
         self.action = action
         self.rpContext = rpContext
@@ -1897,6 +1904,7 @@ public struct IdKitRequestConfig {
         self.overrideConnectBaseUrl = overrideConnectBaseUrl
         self.returnTo = returnTo
         self.environment = environment
+        self.connectUrlMode = connectUrlMode
     }
 
     
@@ -1921,7 +1929,8 @@ public struct FfiConverterTypeIDKitRequestConfig: FfiConverterRustBuffer {
                 allowLegacyProofs: FfiConverterBool.read(from: &buf), 
                 overrideConnectBaseUrl: FfiConverterOptionString.read(from: &buf), 
                 returnTo: FfiConverterOptionString.read(from: &buf), 
-                environment: FfiConverterOptionTypeEnvironment.read(from: &buf)
+                environment: FfiConverterOptionTypeEnvironment.read(from: &buf), 
+                connectUrlMode: FfiConverterOptionTypeConnectUrlMode.read(from: &buf)
         )
     }
 
@@ -1935,6 +1944,7 @@ public struct FfiConverterTypeIDKitRequestConfig: FfiConverterRustBuffer {
         FfiConverterOptionString.write(value.overrideConnectBaseUrl, into: &buf)
         FfiConverterOptionString.write(value.returnTo, into: &buf)
         FfiConverterOptionTypeEnvironment.write(value.environment, into: &buf)
+        FfiConverterOptionTypeConnectUrlMode.write(value.connectUrlMode, into: &buf)
     }
 }
 
@@ -2363,6 +2373,80 @@ public func FfiConverterTypeAppError_lift(_ buf: RustBuffer) throws -> AppError 
 #endif
 public func FfiConverterTypeAppError_lower(_ value: AppError) -> RustBuffer {
     return FfiConverterTypeAppError.lower(value)
+}
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * Controls the format of the connect URL returned by `IDKitRequestWrapper`
+ */
+
+public enum ConnectUrlMode: Equatable, Hashable {
+    
+    /**
+     * Return the standard World App connect URL
+     */
+    case `default`
+    /**
+     * Wrap the connect URL inside an Apple App Clip invocation URL
+     */
+    case appClip
+
+
+
+}
+
+#if compiler(>=6)
+extension ConnectUrlMode: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeConnectUrlMode: FfiConverterRustBuffer {
+    typealias SwiftType = ConnectUrlMode
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ConnectUrlMode {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .`default`
+        
+        case 2: return .appClip
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: ConnectUrlMode, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .`default`:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .appClip:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeConnectUrlMode_lift(_ buf: RustBuffer) throws -> ConnectUrlMode {
+    return try FfiConverterTypeConnectUrlMode.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeConnectUrlMode_lower(_ value: ConnectUrlMode) -> RustBuffer {
+    return FfiConverterTypeConnectUrlMode.lower(value)
 }
 
 
@@ -3385,6 +3469,30 @@ fileprivate struct FfiConverterOptionTypeSignal: FfiConverterRustBuffer {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterTypeSignal.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypeConnectUrlMode: FfiConverterRustBuffer {
+    typealias SwiftType = ConnectUrlMode?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeConnectUrlMode.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeConnectUrlMode.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
