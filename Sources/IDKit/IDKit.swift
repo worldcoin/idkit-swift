@@ -6,7 +6,7 @@ public typealias IDKitResult = IdKitResult
 
 /// Main entry point for IDKit Swift SDK.
 public enum IDKit {
-    public static let version = "4.0.5"
+    public static let version = "4.0.6"
 
     /// Creates a builder for uniqueness proof requests.
     public static func request(config: IDKitRequestConfig) -> IDKitBuilder {
