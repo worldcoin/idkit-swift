@@ -1987,7 +1987,8 @@ public struct IdKitResult: Equatable, Hashable {
      */
     public var actionDescription: String?
     /**
-     * Session ID (only present for session proofs)
+     * Opaque session identifier in protocol string form (`session_<hex>`)
+     * (only present for session proofs)
      */
     public var sessionId: String?
     /**
@@ -2015,7 +2016,8 @@ public struct IdKitResult: Equatable, Hashable {
          * Action description (only if provided in input)
          */actionDescription: String?, 
         /**
-         * Session ID (only present for session proofs)
+         * Opaque session identifier in protocol string form (`session_<hex>`)
+         * (only present for session proofs)
          */sessionId: String?, 
         /**
          * Array of credential responses (always successful - errors at `BridgeResponse` level)
@@ -3054,8 +3056,8 @@ public enum ResponseItem: Equatable, Hashable {
          * Credential identifier (e.g., `proof_of_human`, `face`)
          */identifier: String, 
         /**
-         * Signal hash (optional, included if signal was provided in request)
-         */signalHash: String?, 
+         * Signal hash (hash of the signal provided in the request, or hash of empty signal)
+         */signalHash: String, 
         /**
          * ABI-encoded proof (hex string)
          */proof: String, 
@@ -3091,7 +3093,7 @@ public struct FfiConverterTypeResponseItem: FfiConverterRustBuffer {
         case 2: return .session(identifier: try FfiConverterString.read(from: &buf), signalHash: try FfiConverterOptionString.read(from: &buf), issuerSchemaId: try FfiConverterUInt64.read(from: &buf), proof: try FfiConverterSequenceString.read(from: &buf), sessionNullifier: try FfiConverterSequenceString.read(from: &buf), expiresAtMin: try FfiConverterUInt64.read(from: &buf)
         )
         
-        case 3: return .v3(identifier: try FfiConverterString.read(from: &buf), signalHash: try FfiConverterOptionString.read(from: &buf), proof: try FfiConverterString.read(from: &buf), merkleRoot: try FfiConverterString.read(from: &buf), nullifier: try FfiConverterString.read(from: &buf)
+        case 3: return .v3(identifier: try FfiConverterString.read(from: &buf), signalHash: try FfiConverterString.read(from: &buf), proof: try FfiConverterString.read(from: &buf), merkleRoot: try FfiConverterString.read(from: &buf), nullifier: try FfiConverterString.read(from: &buf)
         )
         
         default: throw UniffiInternalError.unexpectedEnumCase
@@ -3125,7 +3127,7 @@ public struct FfiConverterTypeResponseItem: FfiConverterRustBuffer {
         case let .v3(identifier,signalHash,proof,merkleRoot,nullifier):
             writeInt(&buf, Int32(3))
             FfiConverterString.write(identifier, into: &buf)
-            FfiConverterOptionString.write(signalHash, into: &buf)
+            FfiConverterString.write(signalHash, into: &buf)
             FfiConverterString.write(proof, into: &buf)
             FfiConverterString.write(merkleRoot, into: &buf)
             FfiConverterString.write(nullifier, into: &buf)
@@ -3289,13 +3291,6 @@ public enum VerificationLevel: Equatable, Hashable {
      * Secure document verification (secure document or orb)
      */
     case secureDocument
-    /**
-     * Invalid verification level (used to signal World App 4.0+ only)
-     *
-     * When this is sent, older World App versions will reject the request
-     * with an error, ensuring only 4.0+ versions can process the request.
-     */
-    case deprecated
 
 
 
@@ -3325,8 +3320,6 @@ public struct FfiConverterTypeVerificationLevel: FfiConverterRustBuffer {
         
         case 5: return .secureDocument
         
-        case 6: return .deprecated
-        
         default: throw UniffiInternalError.unexpectedEnumCase
         }
     }
@@ -3353,10 +3346,6 @@ public struct FfiConverterTypeVerificationLevel: FfiConverterRustBuffer {
         
         case .secureDocument:
             writeInt(&buf, Int32(5))
-        
-        
-        case .deprecated:
-            writeInt(&buf, Int32(6))
         
         }
     }
