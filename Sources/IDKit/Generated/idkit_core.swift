@@ -419,6 +419,22 @@ fileprivate final class UniffiHandleMap<T>: @unchecked Sendable {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterUInt8: FfiConverterPrimitive {
+    typealias FfiType = UInt8
+    typealias SwiftType = UInt8
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UInt8 {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: UInt8, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterUInt64: FfiConverterPrimitive {
     typealias FfiType = UInt64
     typealias SwiftType = UInt64
@@ -578,6 +594,11 @@ open class ConstraintNode: ConstraintNodeProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_idkit_fn_free_constraintnode(handle, $0) }
     }
 
@@ -806,6 +827,11 @@ public convenience init(credentialType: CredentialType, signal: Signal?) {
 }
 
     deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_idkit_fn_free_credentialrequest(handle, $0) }
     }
 
@@ -1049,6 +1075,11 @@ open class IdKitBuilder: IdKitBuilderProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_idkit_fn_free_idkitbuilder(handle, $0) }
     }
 
@@ -1242,6 +1273,11 @@ open class IdKitRequestWrapper: IdKitRequestWrapperProtocol, @unchecked Sendable
     // No primary constructor declared for this class.
 
     deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_idkit_fn_free_idkitrequestwrapper(handle, $0) }
     }
 
@@ -1448,6 +1484,11 @@ public convenience init(rpId: String, nonce: String, createdAt: UInt64, expiresA
 }
 
     deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_idkit_fn_free_rpcontext(handle, $0) }
     }
 
@@ -1628,6 +1669,11 @@ open class Signal: SignalProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_idkit_fn_free_signal(handle, $0) }
     }
 
@@ -1769,6 +1815,8 @@ public struct BridgeResponseV1: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -1908,6 +1956,8 @@ public struct IdKitRequestConfig {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -1999,6 +2049,11 @@ public struct IdKitResult: Equatable, Hashable {
      * The environment used for this request ("production" or "staging")
      */
     public var environment: String
+    /**
+     * Whether identity attributes were attested.
+     * Only present on responses from an `IdentityCheck` request.
+     */
+    public var identityAttested: Bool?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -2024,7 +2079,11 @@ public struct IdKitResult: Equatable, Hashable {
          */responses: [ResponseItem], 
         /**
          * The environment used for this request ("production" or "staging")
-         */environment: String) {
+         */environment: String, 
+        /**
+         * Whether identity attributes were attested.
+         * Only present on responses from an `IdentityCheck` request.
+         */identityAttested: Bool?) {
         self.protocolVersion = protocolVersion
         self.nonce = nonce
         self.action = action
@@ -2032,7 +2091,10 @@ public struct IdKitResult: Equatable, Hashable {
         self.sessionId = sessionId
         self.responses = responses
         self.environment = environment
+        self.identityAttested = identityAttested
     }
+
+    
 
     
 }
@@ -2054,7 +2116,8 @@ public struct FfiConverterTypeIDKitResult: FfiConverterRustBuffer {
                 actionDescription: FfiConverterOptionString.read(from: &buf), 
                 sessionId: FfiConverterOptionString.read(from: &buf), 
                 responses: FfiConverterSequenceTypeResponseItem.read(from: &buf), 
-                environment: FfiConverterString.read(from: &buf)
+                environment: FfiConverterString.read(from: &buf), 
+                identityAttested: FfiConverterOptionBool.read(from: &buf)
         )
     }
 
@@ -2066,6 +2129,7 @@ public struct FfiConverterTypeIDKitResult: FfiConverterRustBuffer {
         FfiConverterOptionString.write(value.sessionId, into: &buf)
         FfiConverterSequenceTypeResponseItem.write(value.responses, into: &buf)
         FfiConverterString.write(value.environment, into: &buf)
+        FfiConverterOptionBool.write(value.identityAttested, into: &buf)
     }
 }
 
@@ -2152,6 +2216,8 @@ public struct IdKitSessionConfig {
         self.returnTo = returnTo
         self.environment = environment
     }
+
+    
 
     
 }
@@ -2257,9 +2323,47 @@ public enum AppError: Equatable, Hashable {
      */
     case failedByHostApp
     /**
+     * RP signature is invalid
+     */
+    case invalidRpSignature
+    /**
+     * Nullifier was already used
+     */
+    case nullifierReplayed
+    /**
+     * RP reused a signature nonce
+     */
+    case duplicateNonce
+    /**
+     * RP is unknown to the registry
+     */
+    case unknownRp
+    /**
+     * RP is inactive
+     */
+    case inactiveRp
+    /**
+     * RP request timestamp is too old
+     */
+    case timestampTooOld
+    /**
+     * RP request timestamp is too far in the future
+     */
+    case timestampTooFarInFuture
+    /**
+     * RP request timestamp is invalid
+     */
+    case invalidTimestamp
+    /**
+     * RP signature has expired
+     */
+    case rpSignatureExpired
+    /**
      * Generic error
      */
     case genericError
+
+
 
 
 
@@ -2301,7 +2405,25 @@ public struct FfiConverterTypeAppError: FfiConverterRustBuffer {
         
         case 11: return .failedByHostApp
         
-        case 12: return .genericError
+        case 12: return .invalidRpSignature
+        
+        case 13: return .nullifierReplayed
+        
+        case 14: return .duplicateNonce
+        
+        case 15: return .unknownRp
+        
+        case 16: return .inactiveRp
+        
+        case 17: return .timestampTooOld
+        
+        case 18: return .timestampTooFarInFuture
+        
+        case 19: return .invalidTimestamp
+        
+        case 20: return .rpSignatureExpired
+        
+        case 21: return .genericError
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -2355,8 +2477,44 @@ public struct FfiConverterTypeAppError: FfiConverterRustBuffer {
             writeInt(&buf, Int32(11))
         
         
-        case .genericError:
+        case .invalidRpSignature:
             writeInt(&buf, Int32(12))
+        
+        
+        case .nullifierReplayed:
+            writeInt(&buf, Int32(13))
+        
+        
+        case .duplicateNonce:
+            writeInt(&buf, Int32(14))
+        
+        
+        case .unknownRp:
+            writeInt(&buf, Int32(15))
+        
+        
+        case .inactiveRp:
+            writeInt(&buf, Int32(16))
+        
+        
+        case .timestampTooOld:
+            writeInt(&buf, Int32(17))
+        
+        
+        case .timestampTooFarInFuture:
+            writeInt(&buf, Int32(18))
+        
+        
+        case .invalidTimestamp:
+            writeInt(&buf, Int32(19))
+        
+        
+        case .rpSignatureExpired:
+            writeInt(&buf, Int32(20))
+        
+        
+        case .genericError:
+            writeInt(&buf, Int32(21))
         
         }
     }
@@ -2394,6 +2552,8 @@ public enum ConnectUrlMode: Equatable, Hashable {
      * Wrap the connect URL inside an Apple App Clip invocation URL
      */
     case appClip
+
+
 
 
 
@@ -2479,6 +2639,8 @@ public enum CredentialType: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -2549,6 +2711,92 @@ public func FfiConverterTypeCredentialType_lower(_ value: CredentialType) -> Rus
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 /**
+ * Identity document type used in [`IdentityAttribute::DocumentType`].
+ */
+
+public enum DocumentType: Equatable, Hashable {
+    
+    /**
+     * Biometric passport (ICAO 9303)
+     */
+    case passport
+    /**
+     * National electronic identity card
+     */
+    case eid
+    /**
+     * Japan's My Number Card
+     */
+    case mnc
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension DocumentType: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeDocumentType: FfiConverterRustBuffer {
+    typealias SwiftType = DocumentType
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DocumentType {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .passport
+        
+        case 2: return .eid
+        
+        case 3: return .mnc
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: DocumentType, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .passport:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .eid:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .mnc:
+            writeInt(&buf, Int32(3))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDocumentType_lift(_ buf: RustBuffer) throws -> DocumentType {
+    return try FfiConverterTypeDocumentType.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDocumentType_lower(_ value: DocumentType) -> RustBuffer {
+    return FfiConverterTypeDocumentType.lower(value)
+}
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
  * Environment for the bridge request
  */
 
@@ -2556,6 +2804,8 @@ public enum Environment: Equatable, Hashable {
     
     case production
     case staging
+
+
 
 
 
@@ -2611,6 +2861,146 @@ public func FfiConverterTypeEnvironment_lift(_ buf: RustBuffer) throws -> Enviro
 #endif
 public func FfiConverterTypeEnvironment_lower(_ value: Environment) -> RustBuffer {
     return FfiConverterTypeEnvironment.lower(value)
+}
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * A single identity attribute criterion for identity attestation.
+ *
+ * Each variant carries the expected value for that attribute.
+ * Numeric variants (e.g. `MinimumAge`) serialize their value as a JSON integer;
+ * all other variants serialize as a JSON string.
+ *
+ * Wire format: `{"type": "minimum_age", "value": 18}`
+ */
+
+public enum IdentityAttribute: Equatable, Hashable {
+    
+    /**
+     * The type of identity document presented
+     */
+    case documentType(DocumentType
+    )
+    /**
+     * Document number
+     */
+    case documentNumber(String
+    )
+    /**
+     * Issuing country (ISO 3166-1 alpha-3, e.g., "JPN")
+     */
+    case issuingCountry(String
+    )
+    /**
+     * Full name as it appears on the document
+     */
+    case fullName(String
+    )
+    /**
+     * Minimum age in years
+     */
+    case minimumAge(UInt8
+    )
+    /**
+     * Nationality (ISO 3166-1 alpha-3, e.g., "JPN")
+     */
+    case nationality(String
+    )
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension IdentityAttribute: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeIdentityAttribute: FfiConverterRustBuffer {
+    typealias SwiftType = IdentityAttribute
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> IdentityAttribute {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .documentType(try FfiConverterTypeDocumentType.read(from: &buf)
+        )
+        
+        case 2: return .documentNumber(try FfiConverterString.read(from: &buf)
+        )
+        
+        case 3: return .issuingCountry(try FfiConverterString.read(from: &buf)
+        )
+        
+        case 4: return .fullName(try FfiConverterString.read(from: &buf)
+        )
+        
+        case 5: return .minimumAge(try FfiConverterUInt8.read(from: &buf)
+        )
+        
+        case 6: return .nationality(try FfiConverterString.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: IdentityAttribute, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case let .documentType(v1):
+            writeInt(&buf, Int32(1))
+            FfiConverterTypeDocumentType.write(v1, into: &buf)
+            
+        
+        case let .documentNumber(v1):
+            writeInt(&buf, Int32(2))
+            FfiConverterString.write(v1, into: &buf)
+            
+        
+        case let .issuingCountry(v1):
+            writeInt(&buf, Int32(3))
+            FfiConverterString.write(v1, into: &buf)
+            
+        
+        case let .fullName(v1):
+            writeInt(&buf, Int32(4))
+            FfiConverterString.write(v1, into: &buf)
+            
+        
+        case let .minimumAge(v1):
+            writeInt(&buf, Int32(5))
+            FfiConverterUInt8.write(v1, into: &buf)
+            
+        
+        case let .nationality(v1):
+            writeInt(&buf, Int32(6))
+            FfiConverterString.write(v1, into: &buf)
+            
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeIdentityAttribute_lift(_ buf: RustBuffer) throws -> IdentityAttribute {
+    return try FfiConverterTypeIdentityAttribute.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeIdentityAttribute_lower(_ value: IdentityAttribute) -> RustBuffer {
+    return FfiConverterTypeIdentityAttribute.lower(value)
 }
 
 
@@ -2671,6 +3061,8 @@ public enum IdkitError: Swift.Error, Equatable, Hashable, Foundation.LocalizedEr
      * Request timed out
      */
     case Timeout
+
+    
 
     
 
@@ -2891,6 +3283,25 @@ public enum Preset: Equatable, Hashable {
          * Can be a plain string or hex-encoded ABI value (with 0x prefix).
          */signal: String?
     )
+    /**
+     * Document-based identity attestation (World ID 4.0)
+     *
+     * Requests passport or national identity card credentials, with optional
+     * proof-of-humanity requirement.
+     *
+     * This preset requires World ID 4.0-compatible clients. It is not supported
+     * for native v1 payloads or session flows.
+     */
+    case identityCheck(
+        /**
+         * Identity attribute filters the verifier wants to assert.
+         */attributes: [IdentityAttribute], 
+        /**
+         * When `true`, also requires an orb-verified proof-of-humanity credential.
+         */requireProofOfHumanity: Bool
+    )
+
+
 
 
 
@@ -2925,6 +3336,9 @@ public struct FfiConverterTypePreset: FfiConverterRustBuffer {
         case 5: return .deviceLegacy(signal: try FfiConverterOptionString.read(from: &buf)
         )
         
+        case 6: return .identityCheck(attributes: try FfiConverterSequenceTypeIdentityAttribute.read(from: &buf), requireProofOfHumanity: try FfiConverterBool.read(from: &buf)
+        )
+        
         default: throw UniffiInternalError.unexpectedEnumCase
         }
     }
@@ -2956,6 +3370,12 @@ public struct FfiConverterTypePreset: FfiConverterRustBuffer {
         case let .deviceLegacy(signal):
             writeInt(&buf, Int32(5))
             FfiConverterOptionString.write(signal, into: &buf)
+            
+        
+        case let .identityCheck(attributes,requireProofOfHumanity):
+            writeInt(&buf, Int32(6))
+            FfiConverterSequenceTypeIdentityAttribute.write(attributes, into: &buf)
+            FfiConverterBool.write(requireProofOfHumanity, into: &buf)
             
         }
     }
@@ -3068,6 +3488,8 @@ public enum ResponseItem: Equatable, Hashable {
          * Nullifier (hex string)
          */nullifier: String
     )
+
+
 
 
 
@@ -3184,6 +3606,8 @@ public enum StatusWrapper: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -3294,6 +3718,8 @@ public enum VerificationLevel: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -3386,6 +3812,30 @@ fileprivate struct FfiConverterOptionUInt64: FfiConverterRustBuffer {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterUInt64.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionBool: FfiConverterRustBuffer {
+    typealias SwiftType = Bool?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterBool.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterBool.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -3564,6 +4014,31 @@ fileprivate struct FfiConverterSequenceTypeConstraintNode: FfiConverterRustBuffe
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeIdentityAttribute: FfiConverterRustBuffer {
+    typealias SwiftType = [IdentityAttribute]
+
+    public static func write(_ value: [IdentityAttribute], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeIdentityAttribute.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [IdentityAttribute] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [IdentityAttribute]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeIdentityAttribute.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeResponseItem: FfiConverterRustBuffer {
     typealias SwiftType = [ResponseItem]
 
@@ -3596,12 +4071,23 @@ public func createSession(config: IdKitSessionConfig) -> IdKitBuilder  {
 })
 }
 /**
- * Gets the string representation of a credential type
+ * Entry point for proving an existing session
  */
-public func credentialToString(credential: CredentialType) -> String  {
-    return try!  FfiConverterString.lift(try! rustCall() {
-    uniffi_idkit_fn_func_credential_to_string(
-        FfiConverterTypeCredentialType_lower(credential),$0
+public func proveSession(sessionId: String, config: IdKitSessionConfig) -> IdKitBuilder  {
+    return try!  FfiConverterTypeIDKitBuilder_lift(try! rustCall() {
+    uniffi_idkit_fn_func_prove_session(
+        FfiConverterString.lower(sessionId),
+        FfiConverterTypeIDKitSessionConfig_lower(config),$0
+    )
+})
+}
+/**
+ * Entry point for creating `IDKit` requests
+ */
+public func request(config: IdKitRequestConfig) -> IdKitBuilder  {
+    return try!  FfiConverterTypeIDKitBuilder_lift(try! rustCall() {
+    uniffi_idkit_fn_func_request(
+        FfiConverterTypeIDKitRequestConfig_lower(config),$0
     )
 })
 }
@@ -3626,6 +4112,16 @@ public func hashToFieldFfi(input: Data) -> Data  {
     return try!  FfiConverterData.lift(try! rustCall() {
     uniffi_idkit_fn_func_hash_to_field_ffi(
         FfiConverterData.lower(input),$0
+    )
+})
+}
+/**
+ * Gets the string representation of a credential type
+ */
+public func credentialToString(credential: CredentialType) -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_idkit_fn_func_credential_to_string(
+        FfiConverterTypeCredentialType_lower(credential),$0
     )
 })
 }
@@ -3657,27 +4153,6 @@ public func idkitResultToJson(result: IdKitResult)throws  -> String  {
     )
 })
 }
-/**
- * Entry point for proving an existing session
- */
-public func proveSession(sessionId: String, config: IdKitSessionConfig) -> IdKitBuilder  {
-    return try!  FfiConverterTypeIDKitBuilder_lift(try! rustCall() {
-    uniffi_idkit_fn_func_prove_session(
-        FfiConverterString.lower(sessionId),
-        FfiConverterTypeIDKitSessionConfig_lower(config),$0
-    )
-})
-}
-/**
- * Entry point for creating `IDKit` requests
- */
-public func request(config: IdKitRequestConfig) -> IdKitBuilder  {
-    return try!  FfiConverterTypeIDKitBuilder_lift(try! rustCall() {
-    uniffi_idkit_fn_func_request(
-        FfiConverterTypeIDKitRequestConfig_lower(config),$0
-    )
-})
-}
 
 private enum InitializationResult {
     case ok
@@ -3694,133 +4169,133 @@ private let initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
-    if (uniffi_idkit_checksum_func_create_session() != 52914) {
+    if (uniffi_idkit_checksum_func_create_session() != 41742) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_func_credential_to_string() != 22163) {
+    if (uniffi_idkit_checksum_func_prove_session() != 33058) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_func_hash_signal_ffi() != 2942) {
+    if (uniffi_idkit_checksum_func_request() != 18209) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_func_hash_to_field_ffi() != 30328) {
+    if (uniffi_idkit_checksum_func_hash_signal_ffi() != 38001) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_func_idkit_result_from_json() != 51482) {
+    if (uniffi_idkit_checksum_func_hash_to_field_ffi() != 2656) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_func_idkit_result_to_json() != 65487) {
+    if (uniffi_idkit_checksum_func_credential_to_string() != 54584) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_func_prove_session() != 17850) {
+    if (uniffi_idkit_checksum_func_idkit_result_from_json() != 43144) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_func_request() != 54126) {
+    if (uniffi_idkit_checksum_func_idkit_result_to_json() != 50658) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_method_constraintnode_to_json() != 54484) {
+    if (uniffi_idkit_checksum_method_idkitbuilder_constraints() != 40135) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_method_credentialrequest_credential_type() != 63074) {
+    if (uniffi_idkit_checksum_method_idkitbuilder_preset() != 32095) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_method_credentialrequest_expires_at_min() != 54935) {
+    if (uniffi_idkit_checksum_method_idkitrequestwrapper_connect_url() != 63910) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_method_credentialrequest_genesis_issued_at_min() != 33156) {
+    if (uniffi_idkit_checksum_method_idkitrequestwrapper_poll_status() != 57495) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_method_credentialrequest_get_signal_bytes() != 57834) {
+    if (uniffi_idkit_checksum_method_idkitrequestwrapper_poll_status_once() != 36674) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_method_credentialrequest_to_json() != 12653) {
+    if (uniffi_idkit_checksum_method_idkitrequestwrapper_request_id() != 5044) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_method_idkitbuilder_constraints() != 39401) {
+    if (uniffi_idkit_checksum_method_constraintnode_to_json() != 43140) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_method_idkitbuilder_preset() != 40472) {
+    if (uniffi_idkit_checksum_method_credentialrequest_credential_type() != 47553) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_method_idkitrequestwrapper_connect_url() != 37454) {
+    if (uniffi_idkit_checksum_method_credentialrequest_expires_at_min() != 5381) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_method_idkitrequestwrapper_poll_status() != 56441) {
+    if (uniffi_idkit_checksum_method_credentialrequest_genesis_issued_at_min() != 36208) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_method_idkitrequestwrapper_poll_status_once() != 10322) {
+    if (uniffi_idkit_checksum_method_credentialrequest_get_signal_bytes() != 61828) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_method_idkitrequestwrapper_request_id() != 56066) {
+    if (uniffi_idkit_checksum_method_credentialrequest_to_json() != 26417) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_method_rpcontext_created_at() != 1287) {
+    if (uniffi_idkit_checksum_method_rpcontext_created_at() != 4737) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_method_rpcontext_expires_at() != 23095) {
+    if (uniffi_idkit_checksum_method_rpcontext_expires_at() != 32540) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_method_rpcontext_nonce() != 15395) {
+    if (uniffi_idkit_checksum_method_rpcontext_nonce() != 30306) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_method_rpcontext_rp_id() != 9223) {
+    if (uniffi_idkit_checksum_method_rpcontext_rp_id() != 29093) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_method_rpcontext_signature() != 34827) {
+    if (uniffi_idkit_checksum_method_rpcontext_signature() != 42950) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_method_signal_as_bytes() != 58268) {
+    if (uniffi_idkit_checksum_method_signal_as_bytes() != 31228) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_method_signal_as_string() != 53522) {
+    if (uniffi_idkit_checksum_method_signal_as_string() != 46231) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_constructor_constraintnode_all() != 45947) {
+    if (uniffi_idkit_checksum_constructor_idkitbuilder_from_create_session() != 32636) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_constructor_constraintnode_any() != 35991) {
+    if (uniffi_idkit_checksum_constructor_idkitbuilder_from_prove_session() != 57446) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_constructor_constraintnode_enumerate() != 36816) {
+    if (uniffi_idkit_checksum_constructor_idkitbuilder_from_request() != 6073) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_constructor_constraintnode_from_json() != 8810) {
+    if (uniffi_idkit_checksum_constructor_constraintnode_all() != 23041) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_constructor_constraintnode_item() != 49909) {
+    if (uniffi_idkit_checksum_constructor_constraintnode_any() != 40310) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_constructor_credentialrequest_from_json() != 24959) {
+    if (uniffi_idkit_checksum_constructor_constraintnode_enumerate() != 39643) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_constructor_credentialrequest_new() != 33926) {
+    if (uniffi_idkit_checksum_constructor_constraintnode_from_json() != 45455) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_constructor_credentialrequest_with_expires_at_min() != 37176) {
+    if (uniffi_idkit_checksum_constructor_constraintnode_item() != 25862) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_constructor_credentialrequest_with_genesis_min() != 55242) {
+    if (uniffi_idkit_checksum_constructor_credentialrequest_from_json() != 36059) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_constructor_credentialrequest_with_string_signal() != 30356) {
+    if (uniffi_idkit_checksum_constructor_credentialrequest_new() != 8593) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_constructor_idkitbuilder_from_create_session() != 55274) {
+    if (uniffi_idkit_checksum_constructor_credentialrequest_with_expires_at_min() != 10650) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_constructor_idkitbuilder_from_prove_session() != 32009) {
+    if (uniffi_idkit_checksum_constructor_credentialrequest_with_genesis_min() != 42472) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_constructor_idkitbuilder_from_request() != 13424) {
+    if (uniffi_idkit_checksum_constructor_credentialrequest_with_string_signal() != 54223) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_constructor_rpcontext_new() != 50798) {
+    if (uniffi_idkit_checksum_constructor_rpcontext_new() != 44760) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_constructor_signal_from_bytes() != 2569) {
+    if (uniffi_idkit_checksum_constructor_signal_from_bytes() != 59816) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_idkit_checksum_constructor_signal_from_string() != 7997) {
+    if (uniffi_idkit_checksum_constructor_signal_from_string() != 6500) {
         return InitializationResult.apiChecksumMismatch
     }
 

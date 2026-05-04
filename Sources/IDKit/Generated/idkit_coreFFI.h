@@ -243,6 +243,71 @@ typedef void (*UniffiForeignFutureCompleteVoid)(uint64_t, UniffiForeignFutureRes
     );
 
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CLONE_IDKITBUILDER
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CLONE_IDKITBUILDER
+uint64_t uniffi_idkit_fn_clone_idkitbuilder(uint64_t handle, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_FREE_IDKITBUILDER
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_FREE_IDKITBUILDER
+void uniffi_idkit_fn_free_idkitbuilder(uint64_t handle, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CONSTRUCTOR_IDKITBUILDER_FROM_CREATE_SESSION
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CONSTRUCTOR_IDKITBUILDER_FROM_CREATE_SESSION
+uint64_t uniffi_idkit_fn_constructor_idkitbuilder_from_create_session(RustBuffer config, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CONSTRUCTOR_IDKITBUILDER_FROM_PROVE_SESSION
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CONSTRUCTOR_IDKITBUILDER_FROM_PROVE_SESSION
+uint64_t uniffi_idkit_fn_constructor_idkitbuilder_from_prove_session(RustBuffer session_id, RustBuffer config, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CONSTRUCTOR_IDKITBUILDER_FROM_REQUEST
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CONSTRUCTOR_IDKITBUILDER_FROM_REQUEST
+uint64_t uniffi_idkit_fn_constructor_idkitbuilder_from_request(RustBuffer config, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITBUILDER_CONSTRAINTS
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITBUILDER_CONSTRAINTS
+uint64_t uniffi_idkit_fn_method_idkitbuilder_constraints(uint64_t ptr, uint64_t constraints, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITBUILDER_PRESET
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITBUILDER_PRESET
+uint64_t uniffi_idkit_fn_method_idkitbuilder_preset(uint64_t ptr, RustBuffer preset, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CLONE_IDKITREQUESTWRAPPER
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CLONE_IDKITREQUESTWRAPPER
+uint64_t uniffi_idkit_fn_clone_idkitrequestwrapper(uint64_t handle, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_FREE_IDKITREQUESTWRAPPER
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_FREE_IDKITREQUESTWRAPPER
+void uniffi_idkit_fn_free_idkitrequestwrapper(uint64_t handle, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITREQUESTWRAPPER_CONNECT_URL
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITREQUESTWRAPPER_CONNECT_URL
+RustBuffer uniffi_idkit_fn_method_idkitrequestwrapper_connect_url(uint64_t ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITREQUESTWRAPPER_POLL_STATUS
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITREQUESTWRAPPER_POLL_STATUS
+RustBuffer uniffi_idkit_fn_method_idkitrequestwrapper_poll_status(uint64_t ptr, RustBuffer poll_interval_ms, RustBuffer timeout_ms, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITREQUESTWRAPPER_POLL_STATUS_ONCE
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITREQUESTWRAPPER_POLL_STATUS_ONCE
+RustBuffer uniffi_idkit_fn_method_idkitrequestwrapper_poll_status_once(uint64_t ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITREQUESTWRAPPER_REQUEST_ID
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITREQUESTWRAPPER_REQUEST_ID
+RustBuffer uniffi_idkit_fn_method_idkitrequestwrapper_request_id(uint64_t ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CLONE_CONSTRAINTNODE
 #define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CLONE_CONSTRAINTNODE
 uint64_t uniffi_idkit_fn_clone_constraintnode(uint64_t handle, RustCallStatus *_Nonnull out_status
@@ -343,71 +408,6 @@ RustBuffer uniffi_idkit_fn_method_credentialrequest_get_signal_bytes(uint64_t pt
 RustBuffer uniffi_idkit_fn_method_credentialrequest_to_json(uint64_t ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CLONE_IDKITBUILDER
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CLONE_IDKITBUILDER
-uint64_t uniffi_idkit_fn_clone_idkitbuilder(uint64_t handle, RustCallStatus *_Nonnull out_status
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_FREE_IDKITBUILDER
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_FREE_IDKITBUILDER
-void uniffi_idkit_fn_free_idkitbuilder(uint64_t handle, RustCallStatus *_Nonnull out_status
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CONSTRUCTOR_IDKITBUILDER_FROM_CREATE_SESSION
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CONSTRUCTOR_IDKITBUILDER_FROM_CREATE_SESSION
-uint64_t uniffi_idkit_fn_constructor_idkitbuilder_from_create_session(RustBuffer config, RustCallStatus *_Nonnull out_status
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CONSTRUCTOR_IDKITBUILDER_FROM_PROVE_SESSION
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CONSTRUCTOR_IDKITBUILDER_FROM_PROVE_SESSION
-uint64_t uniffi_idkit_fn_constructor_idkitbuilder_from_prove_session(RustBuffer session_id, RustBuffer config, RustCallStatus *_Nonnull out_status
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CONSTRUCTOR_IDKITBUILDER_FROM_REQUEST
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CONSTRUCTOR_IDKITBUILDER_FROM_REQUEST
-uint64_t uniffi_idkit_fn_constructor_idkitbuilder_from_request(RustBuffer config, RustCallStatus *_Nonnull out_status
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITBUILDER_CONSTRAINTS
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITBUILDER_CONSTRAINTS
-uint64_t uniffi_idkit_fn_method_idkitbuilder_constraints(uint64_t ptr, uint64_t constraints, RustCallStatus *_Nonnull out_status
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITBUILDER_PRESET
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITBUILDER_PRESET
-uint64_t uniffi_idkit_fn_method_idkitbuilder_preset(uint64_t ptr, RustBuffer preset, RustCallStatus *_Nonnull out_status
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CLONE_IDKITREQUESTWRAPPER
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CLONE_IDKITREQUESTWRAPPER
-uint64_t uniffi_idkit_fn_clone_idkitrequestwrapper(uint64_t handle, RustCallStatus *_Nonnull out_status
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_FREE_IDKITREQUESTWRAPPER
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_FREE_IDKITREQUESTWRAPPER
-void uniffi_idkit_fn_free_idkitrequestwrapper(uint64_t handle, RustCallStatus *_Nonnull out_status
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITREQUESTWRAPPER_CONNECT_URL
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITREQUESTWRAPPER_CONNECT_URL
-RustBuffer uniffi_idkit_fn_method_idkitrequestwrapper_connect_url(uint64_t ptr, RustCallStatus *_Nonnull out_status
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITREQUESTWRAPPER_POLL_STATUS
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITREQUESTWRAPPER_POLL_STATUS
-RustBuffer uniffi_idkit_fn_method_idkitrequestwrapper_poll_status(uint64_t ptr, RustBuffer poll_interval_ms, RustBuffer timeout_ms, RustCallStatus *_Nonnull out_status
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITREQUESTWRAPPER_POLL_STATUS_ONCE
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITREQUESTWRAPPER_POLL_STATUS_ONCE
-RustBuffer uniffi_idkit_fn_method_idkitrequestwrapper_poll_status_once(uint64_t ptr, RustCallStatus *_Nonnull out_status
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITREQUESTWRAPPER_REQUEST_ID
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_IDKITREQUESTWRAPPER_REQUEST_ID
-RustBuffer uniffi_idkit_fn_method_idkitrequestwrapper_request_id(uint64_t ptr, RustCallStatus *_Nonnull out_status
-);
-#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CLONE_RPCONTEXT
 #define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CLONE_RPCONTEXT
 uint64_t uniffi_idkit_fn_clone_rpcontext(uint64_t handle, RustCallStatus *_Nonnull out_status
@@ -483,9 +483,14 @@ RustBuffer uniffi_idkit_fn_method_signal_as_string(uint64_t ptr, RustCallStatus 
 uint64_t uniffi_idkit_fn_func_create_session(RustBuffer config, RustCallStatus *_Nonnull out_status
 );
 #endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_FUNC_CREDENTIAL_TO_STRING
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_FUNC_CREDENTIAL_TO_STRING
-RustBuffer uniffi_idkit_fn_func_credential_to_string(RustBuffer credential, RustCallStatus *_Nonnull out_status
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_FUNC_PROVE_SESSION
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_FUNC_PROVE_SESSION
+uint64_t uniffi_idkit_fn_func_prove_session(RustBuffer session_id, RustBuffer config, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_FUNC_REQUEST
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_FUNC_REQUEST
+uint64_t uniffi_idkit_fn_func_request(RustBuffer config, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_FUNC_HASH_SIGNAL_FFI
@@ -498,6 +503,11 @@ RustBuffer uniffi_idkit_fn_func_hash_signal_ffi(uint64_t signal, RustCallStatus 
 RustBuffer uniffi_idkit_fn_func_hash_to_field_ffi(RustBuffer input, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_FUNC_CREDENTIAL_TO_STRING
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_FUNC_CREDENTIAL_TO_STRING
+RustBuffer uniffi_idkit_fn_func_credential_to_string(RustBuffer credential, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_FUNC_IDKIT_RESULT_FROM_JSON
 #define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_FUNC_IDKIT_RESULT_FROM_JSON
 RustBuffer uniffi_idkit_fn_func_idkit_result_from_json(RustBuffer json, RustCallStatus *_Nonnull out_status
@@ -506,16 +516,6 @@ RustBuffer uniffi_idkit_fn_func_idkit_result_from_json(RustBuffer json, RustCall
 #ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_FUNC_IDKIT_RESULT_TO_JSON
 #define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_FUNC_IDKIT_RESULT_TO_JSON
 RustBuffer uniffi_idkit_fn_func_idkit_result_to_json(RustBuffer result, RustCallStatus *_Nonnull out_status
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_FUNC_PROVE_SESSION
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_FUNC_PROVE_SESSION
-uint64_t uniffi_idkit_fn_func_prove_session(RustBuffer session_id, RustBuffer config, RustCallStatus *_Nonnull out_status
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_FUNC_REQUEST
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_FUNC_REQUEST
-uint64_t uniffi_idkit_fn_func_request(RustBuffer config, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_FFI_IDKIT_RUSTBUFFER_ALLOC
@@ -784,9 +784,15 @@ uint16_t uniffi_idkit_checksum_func_create_session(void
     
 );
 #endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_FUNC_CREDENTIAL_TO_STRING
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_FUNC_CREDENTIAL_TO_STRING
-uint16_t uniffi_idkit_checksum_func_credential_to_string(void
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_FUNC_PROVE_SESSION
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_FUNC_PROVE_SESSION
+uint16_t uniffi_idkit_checksum_func_prove_session(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_FUNC_REQUEST
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_FUNC_REQUEST
+uint16_t uniffi_idkit_checksum_func_request(void
     
 );
 #endif
@@ -802,6 +808,12 @@ uint16_t uniffi_idkit_checksum_func_hash_to_field_ffi(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_FUNC_CREDENTIAL_TO_STRING
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_FUNC_CREDENTIAL_TO_STRING
+uint16_t uniffi_idkit_checksum_func_credential_to_string(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_FUNC_IDKIT_RESULT_FROM_JSON
 #define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_FUNC_IDKIT_RESULT_FROM_JSON
 uint16_t uniffi_idkit_checksum_func_idkit_result_from_json(void
@@ -811,54 +823,6 @@ uint16_t uniffi_idkit_checksum_func_idkit_result_from_json(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_FUNC_IDKIT_RESULT_TO_JSON
 #define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_FUNC_IDKIT_RESULT_TO_JSON
 uint16_t uniffi_idkit_checksum_func_idkit_result_to_json(void
-    
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_FUNC_PROVE_SESSION
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_FUNC_PROVE_SESSION
-uint16_t uniffi_idkit_checksum_func_prove_session(void
-    
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_FUNC_REQUEST
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_FUNC_REQUEST
-uint16_t uniffi_idkit_checksum_func_request(void
-    
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_CONSTRAINTNODE_TO_JSON
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_CONSTRAINTNODE_TO_JSON
-uint16_t uniffi_idkit_checksum_method_constraintnode_to_json(void
-    
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_CREDENTIALREQUEST_CREDENTIAL_TYPE
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_CREDENTIALREQUEST_CREDENTIAL_TYPE
-uint16_t uniffi_idkit_checksum_method_credentialrequest_credential_type(void
-    
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_CREDENTIALREQUEST_EXPIRES_AT_MIN
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_CREDENTIALREQUEST_EXPIRES_AT_MIN
-uint16_t uniffi_idkit_checksum_method_credentialrequest_expires_at_min(void
-    
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_CREDENTIALREQUEST_GENESIS_ISSUED_AT_MIN
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_CREDENTIALREQUEST_GENESIS_ISSUED_AT_MIN
-uint16_t uniffi_idkit_checksum_method_credentialrequest_genesis_issued_at_min(void
-    
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_CREDENTIALREQUEST_GET_SIGNAL_BYTES
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_CREDENTIALREQUEST_GET_SIGNAL_BYTES
-uint16_t uniffi_idkit_checksum_method_credentialrequest_get_signal_bytes(void
-    
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_CREDENTIALREQUEST_TO_JSON
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_CREDENTIALREQUEST_TO_JSON
-uint16_t uniffi_idkit_checksum_method_credentialrequest_to_json(void
     
 );
 #endif
@@ -895,6 +859,42 @@ uint16_t uniffi_idkit_checksum_method_idkitrequestwrapper_poll_status_once(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_IDKITREQUESTWRAPPER_REQUEST_ID
 #define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_IDKITREQUESTWRAPPER_REQUEST_ID
 uint16_t uniffi_idkit_checksum_method_idkitrequestwrapper_request_id(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_CONSTRAINTNODE_TO_JSON
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_CONSTRAINTNODE_TO_JSON
+uint16_t uniffi_idkit_checksum_method_constraintnode_to_json(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_CREDENTIALREQUEST_CREDENTIAL_TYPE
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_CREDENTIALREQUEST_CREDENTIAL_TYPE
+uint16_t uniffi_idkit_checksum_method_credentialrequest_credential_type(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_CREDENTIALREQUEST_EXPIRES_AT_MIN
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_CREDENTIALREQUEST_EXPIRES_AT_MIN
+uint16_t uniffi_idkit_checksum_method_credentialrequest_expires_at_min(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_CREDENTIALREQUEST_GENESIS_ISSUED_AT_MIN
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_CREDENTIALREQUEST_GENESIS_ISSUED_AT_MIN
+uint16_t uniffi_idkit_checksum_method_credentialrequest_genesis_issued_at_min(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_CREDENTIALREQUEST_GET_SIGNAL_BYTES
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_CREDENTIALREQUEST_GET_SIGNAL_BYTES
+uint16_t uniffi_idkit_checksum_method_credentialrequest_get_signal_bytes(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_CREDENTIALREQUEST_TO_JSON
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_CREDENTIALREQUEST_TO_JSON
+uint16_t uniffi_idkit_checksum_method_credentialrequest_to_json(void
     
 );
 #endif
@@ -937,6 +937,24 @@ uint16_t uniffi_idkit_checksum_method_signal_as_bytes(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_SIGNAL_AS_STRING
 #define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_SIGNAL_AS_STRING
 uint16_t uniffi_idkit_checksum_method_signal_as_string(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_CONSTRUCTOR_IDKITBUILDER_FROM_CREATE_SESSION
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_CONSTRUCTOR_IDKITBUILDER_FROM_CREATE_SESSION
+uint16_t uniffi_idkit_checksum_constructor_idkitbuilder_from_create_session(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_CONSTRUCTOR_IDKITBUILDER_FROM_PROVE_SESSION
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_CONSTRUCTOR_IDKITBUILDER_FROM_PROVE_SESSION
+uint16_t uniffi_idkit_checksum_constructor_idkitbuilder_from_prove_session(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_CONSTRUCTOR_IDKITBUILDER_FROM_REQUEST
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_CONSTRUCTOR_IDKITBUILDER_FROM_REQUEST
+uint16_t uniffi_idkit_checksum_constructor_idkitbuilder_from_request(void
     
 );
 #endif
@@ -997,24 +1015,6 @@ uint16_t uniffi_idkit_checksum_constructor_credentialrequest_with_genesis_min(vo
 #ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_CONSTRUCTOR_CREDENTIALREQUEST_WITH_STRING_SIGNAL
 #define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_CONSTRUCTOR_CREDENTIALREQUEST_WITH_STRING_SIGNAL
 uint16_t uniffi_idkit_checksum_constructor_credentialrequest_with_string_signal(void
-    
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_CONSTRUCTOR_IDKITBUILDER_FROM_CREATE_SESSION
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_CONSTRUCTOR_IDKITBUILDER_FROM_CREATE_SESSION
-uint16_t uniffi_idkit_checksum_constructor_idkitbuilder_from_create_session(void
-    
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_CONSTRUCTOR_IDKITBUILDER_FROM_PROVE_SESSION
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_CONSTRUCTOR_IDKITBUILDER_FROM_PROVE_SESSION
-uint16_t uniffi_idkit_checksum_constructor_idkitbuilder_from_prove_session(void
-    
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_CONSTRUCTOR_IDKITBUILDER_FROM_REQUEST
-#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_CONSTRUCTOR_IDKITBUILDER_FROM_REQUEST
-uint16_t uniffi_idkit_checksum_constructor_idkitbuilder_from_request(void
     
 );
 #endif
