@@ -1,7 +1,7 @@
 // swift-tools-version: 5.9
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
-// Release version: 4.0.7-dev.a1f890a
+// Release version: 4.0.8
 
 import PackageDescription
 
@@ -19,8 +19,8 @@ let package = Package(
     targets: [
         .binaryTarget(
             name: "idkitFFI",
-            url: "https://github.com/worldcoin/idkit-swift/releases/download/4.0.7-dev.a1f890a/IDKitFFI.xcframework.zip",
-            checksum: "709b28ecfb7b01c97bbbf379c130d048c59ee51233e33ba4ccf14c1a3dcbdf26"
+            url: "https://github.com/worldcoin/idkit-swift/releases/download/4.0.8/IDKitFFI.xcframework.zip",
+            checksum: "eb502aaa212399808e6e3df8bb59e9d887959df287abd73c5b344ef933800f36"
         ),
         .target(
             name: "IDKit",
