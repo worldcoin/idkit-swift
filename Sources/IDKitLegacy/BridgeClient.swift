@@ -13,9 +13,9 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 		/// Waiting for the user to confirm the request
 		case awaitingConfirmation
 		/// The user has confirmed the request. Contains the proof of verification.
-		case confirmed(Response)
+		case confirmed(Response, integrityBundle: String?)
 		/// The request has failed. Contains details about the failure.
-		case failed(AppError)
+		case failed(AppError, integrityBundle: String?)
 
 		/// Check if two statuses are equal. Does not compare the associated values of `.confirmed` and `.failed`, only the case
 		public static func == (lhs: Status, rhs: Status) -> Bool {
@@ -108,8 +108,8 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 						guard let payload = response.response else { throw AppError.unexpectedResponse }
 
                         switch try payload.decrypt(with: key, responseType: BridgeResponse<Response>.self) {
-							case let .error(error): continuation.yield(.failed(error))
-							case let .success(proof): continuation.yield(.confirmed(proof))
+							case let .error(error, integrityBundle: bundle): continuation.yield(.failed(error, integrityBundle: bundle))
+							case let .success(proof, integrityBundle: bundle): continuation.yield(.confirmed(proof, integrityBundle: bundle))
 						}
 
 						continuation.finish()

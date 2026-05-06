@@ -83,22 +83,24 @@ public struct Payload: Codable {
 }
 
 public enum BridgeResponse<Response: Decodable>: Decodable {
-	case success(Response)
-	case error(AppError)
+	case success(Response, integrityBundle: String?)
+	case error(AppError, integrityBundle: String?)
 
 	enum CodingKeys: String, CodingKey {
 		case proof
 		case errorCode = "error_code"
+		case integrityBundle = "integrity_bundle"
 	}
 
 	public init(from decoder: Decoder) throws {
 		let container = try decoder.container(keyedBy: CodingKeys.self)
+		let integrityBundle = try container.decodeIfPresent(String.self, forKey: .integrityBundle)
 
 		if let errorCode = try? container.decode(AppError.self, forKey: .errorCode) {
-			self = .error(errorCode)
+			self = .error(errorCode, integrityBundle: integrityBundle)
 		} else {
 			let response = try Response(from: decoder)
-			self = .success(response)
+			self = .success(response, integrityBundle: integrityBundle)
 		}
 	}
 }
@@ -106,11 +108,14 @@ public enum BridgeResponse<Response: Decodable>: Decodable {
 extension BridgeResponse: Encodable where Response: Encodable {
 	public func encode(to encoder: Encoder) throws {
 		switch self {
-			case let .success(response):
+			case let .success(response, integrityBundle):
 				try response.encode(to: encoder)
-			case let .error(error):
+				var container = encoder.container(keyedBy: CodingKeys.self)
+				try container.encodeIfPresent(integrityBundle, forKey: .integrityBundle)
+			case let .error(error, integrityBundle):
 				var container = encoder.container(keyedBy: CodingKeys.self)
 				try container.encode(error, forKey: .errorCode)
+				try container.encodeIfPresent(integrityBundle, forKey: .integrityBundle)
 		}
 	}
 }
