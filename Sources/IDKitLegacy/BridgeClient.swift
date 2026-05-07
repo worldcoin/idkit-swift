@@ -13,9 +13,9 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 		/// Waiting for the user to confirm the request
 		case awaitingConfirmation
 		/// The user has confirmed the request. Contains the proof of verification.
-		case confirmed(Response, integrityBundle: String?)
+		case confirmed(Response, integrityBundle: IntegrityBundle?)
 		/// The request has failed. Contains details about the failure.
-		case failed(AppError, integrityBundle: String?)
+		case failed(AppError, integrityBundle: IntegrityBundle?)
 
 		/// Check if two statuses are equal. Does not compare the associated values of `.confirmed` and `.failed`, only the case
 		public static func == (lhs: Status, rhs: Status) -> Bool {

@@ -83,8 +83,8 @@ public struct Payload: Codable {
 }
 
 public enum BridgeResponse<Response: Decodable>: Decodable {
-	case success(Response, integrityBundle: String?)
-	case error(AppError, integrityBundle: String?)
+	case success(Response, integrityBundle: IntegrityBundle?)
+	case error(AppError, integrityBundle: IntegrityBundle?)
 
 	enum CodingKeys: String, CodingKey {
 		case proof
@@ -94,7 +94,7 @@ public enum BridgeResponse<Response: Decodable>: Decodable {
 
 	public init(from decoder: Decoder) throws {
 		let container = try decoder.container(keyedBy: CodingKeys.self)
-		let integrityBundle = try container.decodeIfPresent(String.self, forKey: .integrityBundle)
+		let integrityBundle = try container.decodeIfPresent(IntegrityBundle.self, forKey: .integrityBundle)
 
 		if let errorCode = try? container.decode(AppError.self, forKey: .errorCode) {
 			self = .error(errorCode, integrityBundle: integrityBundle)
@@ -103,6 +103,22 @@ public enum BridgeResponse<Response: Decodable>: Decodable {
 			self = .success(response, integrityBundle: integrityBundle)
 		}
 	}
+}
+
+public struct IntegrityBundle: Codable, Sendable {
+    public let version: Int
+    public let signatureFormat: String
+    public let timestamp: Int
+    public let signature: String
+    public let jwt: String
+
+    private enum CodingKeys: String, CodingKey {
+        case version
+        case signatureFormat = "signature_format"
+        case timestamp
+        case signature
+        case jwt
+    }
 }
 
 extension BridgeResponse: Encodable where Response: Encodable {
