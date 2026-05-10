@@ -49,9 +49,25 @@ public final class IDKitBuilder {
     //     return try IDKitRequest(inner: request)
     // }
 
+    // TODO: Re-enable when World ID 4.0 is live
+    // public func constraintsWithInviteCode(_ constraints: ConstraintNode) throws -> IDKitInviteCodeRequest {
+    //     let request = try inner.constraintsWithInviteCode(constraints: constraints)
+    //     return try IDKitInviteCodeRequest(inner: request)
+    // }
+
     public func preset(_ preset: Preset) throws -> IDKitRequest {
         let request = try inner.preset(preset: preset)
         return try IDKitRequest(inner: request)
+    }
+
+    /// Builds the request in invite-code mode.
+    ///
+    /// Returns an `IDKitInviteCodeRequest` exposing the canonical 6-character
+    /// invite code (no separator), expiry, and the same poll-status surface
+    /// as `IDKitRequest`.
+    public func presetWithInviteCode(_ preset: Preset) throws -> IDKitInviteCodeRequest {
+        let request = try inner.presetWithInviteCode(preset: preset)
+        return try IDKitInviteCodeRequest(inner: request)
     }
 }
 
@@ -89,6 +105,8 @@ public enum IDKitErrorCode: String, Equatable {
     case userRejected = "user_rejected"
     case verificationRejected = "verification_rejected"
     case credentialUnavailable = "credential_unavailable"
+    case worldId4NotAvailable = "world_id_4_not_available"
+    case worldId3NotAvailable = "world_id_3_not_available"
     case malformedRequest = "malformed_request"
     case invalidNetwork = "invalid_network"
     case inclusionProofPending = "inclusion_proof_pending"
@@ -106,6 +124,7 @@ public enum IDKitErrorCode: String, Equatable {
     case timestampTooFarInFuture = "timestamp_too_far_in_future"
     case invalidTimestamp = "invalid_timestamp"
     case rpSignatureExpired = "rp_signature_expired"
+    case identityAttributesNotMatched = "identity_attributes_not_matched"
     case genericError = "generic_error"
     case timeout = "timeout"
     case cancelled = "cancelled"
@@ -118,6 +137,10 @@ public enum IDKitErrorCode: String, Equatable {
             .verificationRejected
         case .credentialUnavailable:
             .credentialUnavailable
+        case .worldId4NotAvailable:
+            .worldId4NotAvailable
+        case .worldId3NotAvailable:
+            .worldId3NotAvailable
         case .malformedRequest:
             .malformedRequest
         case .invalidNetwork:
@@ -152,6 +175,8 @@ public enum IDKitErrorCode: String, Equatable {
             .invalidTimestamp
         case .rpSignatureExpired:
             .rpSignatureExpired
+        case .identityAttributesNotMatched:
+            .identityAttributesNotMatched
         case .genericError:
             .genericError
         }
@@ -176,6 +201,12 @@ public enum IDKitClientError: Error, LocalizedError {
 /// Canonical request wrapper.
 public final class IDKitRequest {
     public let connectorURL: URL
+    /// Bridge-assigned UUID v4 for the URL/QR flow.
+    ///
+    /// Invite-code mode uses opaque hex identifiers that are not UUIDs and is
+    /// exposed via `IDKitInviteCodeRequest.requestID: String` — the typed
+    /// `UUID` here is preserved on this wrapper so existing URL/QR adopters
+    /// keep their source contract.
     public let requestID: UUID
 
     private let pollOnceImpl: @Sendable () async -> IDKitStatus
@@ -212,35 +243,7 @@ public final class IDKitRequest {
 
     /// Polls repeatedly until a terminal result, timeout, or cancellation.
     public func pollUntilCompletion(options: IDKitPollOptions = IDKitPollOptions()) async -> IDKitCompletionResult {
-        let pollIntervalMs = max(options.pollIntervalMs, 1)
-        let startTime = Date()
-
-        while true {
-            if Task.isCancelled {
-                return .failure(.cancelled)
-            }
-
-            let elapsedMs = Date().timeIntervalSince(startTime) * 1_000
-            if elapsedMs >= Double(options.timeoutMs) {
-                return .failure(.timeout)
-            }
-
-            let status = await pollStatusOnce()
-            switch status {
-            case .confirmed(let result):
-                return .success(result)
-            case .failed(let error):
-                return .failure(error)
-            case .waitingForConnection, .awaitingConfirmation, .networkingError:
-                break
-            }
-
-            do {
-                try await Task.sleep(nanoseconds: pollIntervalMs * 1_000_000)
-            } catch {
-                return .failure(.cancelled)
-            }
-        }
+        await idkitPollUntilCompletion(options: options, pollOnce: pollOnceImpl)
     }
 
     static func mapStatus(_ status: StatusWrapper) -> IDKitStatus {
@@ -256,6 +259,91 @@ public final class IDKitRequest {
         case .networkingError(let error):
             .networkingError(IDKitErrorCode.from(appError: error))
         }
+    }
+}
+
+/// Shared poll loop used by both `IDKitRequest` and `IDKitInviteCodeRequest`.
+@Sendable
+private func idkitPollUntilCompletion(
+    options: IDKitPollOptions,
+    pollOnce: @Sendable () async -> IDKitStatus
+) async -> IDKitCompletionResult {
+    let pollIntervalMs = max(options.pollIntervalMs, 1)
+    let startTime = Date()
+
+    while true {
+        if Task.isCancelled {
+            return .failure(.cancelled)
+        }
+
+        let elapsedMs = Date().timeIntervalSince(startTime) * 1_000
+        if elapsedMs >= Double(options.timeoutMs) {
+            return .failure(.timeout)
+        }
+
+        let status = await pollOnce()
+        switch status {
+        case .confirmed(let result):
+            return .success(result)
+        case .failed(let error):
+            return .failure(error)
+        case .waitingForConnection, .awaitingConfirmation, .networkingError:
+            break
+        }
+
+        do {
+            try await Task.sleep(nanoseconds: pollIntervalMs * 1_000_000)
+        } catch {
+            return .failure(.cancelled)
+        }
+    }
+}
+
+/// Canonical invite-code request wrapper.
+///
+/// Sibling to `IDKitRequest` for the invite-code flow. The connector URL has
+/// the same shape as URL/QR mode plus `&c=<canonical_code>&a=<app_id>`; the
+/// `world.org/verify` landing page reads those params and renders an
+/// invite-code-aware view. The poll surface mirrors `IDKitRequest`.
+public final class IDKitInviteCodeRequest {
+    public let connectorURL: URL
+    public let expiresAt: Date
+    /// Bridge-assigned request identifier. In invite-code mode this is the
+    /// lowercase-hex `HKDF(C, "dx")` the SDK derived from the code, not a
+    /// UUID — exposed as `String`.
+    public let requestID: String
+
+    private let pollOnceImpl: @Sendable () async -> IDKitStatus
+
+    fileprivate init(inner: IdKitInviteCodeRequest) throws {
+        let rawURL = inner.connectUrl()
+        guard let connectorURL = URL(string: rawURL) else {
+            throw IDKitClientError.invalidConnectorURL(rawURL)
+        }
+        self.connectorURL = connectorURL
+        self.expiresAt = Date(timeIntervalSince1970: TimeInterval(inner.expiresAt()))
+        self.requestID = inner.requestId()
+        self.pollOnceImpl = {
+            IDKitRequest.mapStatus(inner.pollStatusOnce())
+        }
+    }
+
+    // Internal initializer for deterministic polling tests.
+    init(connectorURL: URL, expiresAt: Date, requestID: String, pollOnce: @escaping @Sendable () async -> IDKitStatus) {
+        self.connectorURL = connectorURL
+        self.expiresAt = expiresAt
+        self.requestID = requestID
+        self.pollOnceImpl = pollOnce
+    }
+
+    /// Polls the request exactly once.
+    public func pollStatusOnce() async -> IDKitStatus {
+        await pollOnceImpl()
+    }
+
+    /// Polls repeatedly until a terminal result, timeout, or cancellation.
+    public func pollUntilCompletion(options: IDKitPollOptions = IDKitPollOptions()) async -> IDKitCompletionResult {
+        await idkitPollUntilCompletion(options: options, pollOnce: pollOnceImpl)
     }
 }
 

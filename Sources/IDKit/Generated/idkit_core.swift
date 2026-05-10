@@ -1018,6 +1018,19 @@ public protocol IdKitBuilderProtocol: AnyObject, Sendable {
     func constraints(constraints: ConstraintNode) throws  -> IdKitRequestWrapper
     
     /**
+     * Creates an invite-code mode `BridgeConnection` with the given constraints (WDP-73).
+     *
+     * Same proof-request shape as `constraints()`; the only difference is the
+     * transport layer — the user types a 6-char code into World App instead
+     * of scanning a QR. Returns the displayable code via `IDKitInviteCodeRequest::code()`.
+     *
+     * # Errors
+     *
+     * Returns an error if the request cannot be created.
+     */
+    func constraintsWithInviteCode(constraints: ConstraintNode) throws  -> IdKitInviteCodeRequest
+    
+    /**
      * Creates a `BridgeConnection` from a preset (works for all request types)
      *
      * Presets provide a simplified way to create requests with predefined
@@ -1028,6 +1041,16 @@ public protocol IdKitBuilderProtocol: AnyObject, Sendable {
      * Returns an error if the request cannot be created
      */
     func preset(preset: Preset) throws  -> IdKitRequestWrapper
+    
+    /**
+     * Creates an invite-code mode `BridgeConnection` from a preset (WDP-73).
+     *
+     * # Errors
+     *
+     * Returns an error if the request cannot be created or the request type
+     * doesn't support presets (sessions only support `constraints()`).
+     */
+    func presetWithInviteCode(preset: Preset) throws  -> IdKitInviteCodeRequest
     
 }
 /**
@@ -1137,6 +1160,26 @@ open func constraints(constraints: ConstraintNode)throws  -> IdKitRequestWrapper
 }
     
     /**
+     * Creates an invite-code mode `BridgeConnection` with the given constraints (WDP-73).
+     *
+     * Same proof-request shape as `constraints()`; the only difference is the
+     * transport layer — the user types a 6-char code into World App instead
+     * of scanning a QR. Returns the displayable code via `IDKitInviteCodeRequest::code()`.
+     *
+     * # Errors
+     *
+     * Returns an error if the request cannot be created.
+     */
+open func constraintsWithInviteCode(constraints: ConstraintNode)throws  -> IdKitInviteCodeRequest  {
+    return try  FfiConverterTypeIDKitInviteCodeRequest_lift(try rustCallWithError(FfiConverterTypeIdkitError_lift) {
+    uniffi_idkit_fn_method_idkitbuilder_constraints_with_invite_code(
+            self.uniffiCloneHandle(),
+        FfiConverterTypeConstraintNode_lower(constraints),$0
+    )
+})
+}
+    
+    /**
      * Creates a `BridgeConnection` from a preset (works for all request types)
      *
      * Presets provide a simplified way to create requests with predefined
@@ -1149,6 +1192,23 @@ open func constraints(constraints: ConstraintNode)throws  -> IdKitRequestWrapper
 open func preset(preset: Preset)throws  -> IdKitRequestWrapper  {
     return try  FfiConverterTypeIDKitRequestWrapper_lift(try rustCallWithError(FfiConverterTypeIdkitError_lift) {
     uniffi_idkit_fn_method_idkitbuilder_preset(
+            self.uniffiCloneHandle(),
+        FfiConverterTypePreset_lower(preset),$0
+    )
+})
+}
+    
+    /**
+     * Creates an invite-code mode `BridgeConnection` from a preset (WDP-73).
+     *
+     * # Errors
+     *
+     * Returns an error if the request cannot be created or the request type
+     * doesn't support presets (sessions only support `constraints()`).
+     */
+open func presetWithInviteCode(preset: Preset)throws  -> IdKitInviteCodeRequest  {
+    return try  FfiConverterTypeIDKitInviteCodeRequest_lift(try rustCallWithError(FfiConverterTypeIdkitError_lift) {
+    uniffi_idkit_fn_method_idkitbuilder_preset_with_invite_code(
             self.uniffiCloneHandle(),
         FfiConverterTypePreset_lower(preset),$0
     )
@@ -1198,6 +1258,232 @@ public func FfiConverterTypeIDKitBuilder_lift(_ handle: UInt64) throws -> IdKitB
 #endif
 public func FfiConverterTypeIDKitBuilder_lower(_ value: IdKitBuilder) -> UInt64 {
     return FfiConverterTypeIDKitBuilder.lower(value)
+}
+
+
+
+
+
+
+/**
+ * FFI handle for an invite-code mode bridge session.
+ *
+ * Sibling to `IDKitRequestWrapper` for the URL/QR path. Method names mirror
+ * the URL wrapper exactly so adopters writing a code-mode integration write
+ * the same poll loop they wrote in URL mode — only the constructor and the
+ * displayable `code()` differ.
+ */
+public protocol IdKitInviteCodeRequestProtocol: AnyObject, Sendable {
+    
+    /**
+     * Returns the connector URL the RP should display to the user.
+     *
+     * Same URL shape as URL/QR mode (`https://world.org/verify?t=wld&i=…&k=…`),
+     * with two extra query params (`c=<canonical_code>`, `a=<app_id>`) the
+     * `world.org/verify` landing page uses to render an invite-code-aware view.
+     */
+    func connectUrl()  -> String
+    
+    /**
+     * Unix-seconds expiry of the unredeemed code.
+     *
+     * # Panics
+     *
+     * Never panics in correct use — see `connect_url()`.
+     */
+    func expiresAt()  -> UInt64
+    
+    /**
+     * Polls the request once for the current status.
+     *
+     * `poll_interval_ms` and `timeout_ms` are accepted for signature parity
+     * with `IDKitRequestWrapper::poll_status` and ignored.
+     */
+    func pollStatus(pollIntervalMs: UInt64?, timeoutMs: UInt64?)  -> StatusWrapper
+    
+    /**
+     * Polls the request exactly once for updates.
+     */
+    func pollStatusOnce()  -> StatusWrapper
+    
+    /**
+     * Returns the request ID for this request.
+     */
+    func requestId()  -> String
+    
+}
+/**
+ * FFI handle for an invite-code mode bridge session.
+ *
+ * Sibling to `IDKitRequestWrapper` for the URL/QR path. Method names mirror
+ * the URL wrapper exactly so adopters writing a code-mode integration write
+ * the same poll loop they wrote in URL mode — only the constructor and the
+ * displayable `code()` differ.
+ */
+open class IdKitInviteCodeRequest: IdKitInviteCodeRequestProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
+
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoHandle {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noHandle: NoHandle) {
+        self.handle = 0
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_idkit_fn_clone_idkitinvitecoderequest(self.handle, $0) }
+    }
+    // No primary constructor declared for this class.
+
+    deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
+        try! rustCall { uniffi_idkit_fn_free_idkitinvitecoderequest(handle, $0) }
+    }
+
+    
+
+    
+    /**
+     * Returns the connector URL the RP should display to the user.
+     *
+     * Same URL shape as URL/QR mode (`https://world.org/verify?t=wld&i=…&k=…`),
+     * with two extra query params (`c=<canonical_code>`, `a=<app_id>`) the
+     * `world.org/verify` landing page uses to render an invite-code-aware view.
+     */
+open func connectUrl() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_idkit_fn_method_idkitinvitecoderequest_connect_url(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Unix-seconds expiry of the unredeemed code.
+     *
+     * # Panics
+     *
+     * Never panics in correct use — see `connect_url()`.
+     */
+open func expiresAt() -> UInt64  {
+    return try!  FfiConverterUInt64.lift(try! rustCall() {
+    uniffi_idkit_fn_method_idkitinvitecoderequest_expires_at(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Polls the request once for the current status.
+     *
+     * `poll_interval_ms` and `timeout_ms` are accepted for signature parity
+     * with `IDKitRequestWrapper::poll_status` and ignored.
+     */
+open func pollStatus(pollIntervalMs: UInt64?, timeoutMs: UInt64?) -> StatusWrapper  {
+    return try!  FfiConverterTypeStatusWrapper_lift(try! rustCall() {
+    uniffi_idkit_fn_method_idkitinvitecoderequest_poll_status(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionUInt64.lower(pollIntervalMs),
+        FfiConverterOptionUInt64.lower(timeoutMs),$0
+    )
+})
+}
+    
+    /**
+     * Polls the request exactly once for updates.
+     */
+open func pollStatusOnce() -> StatusWrapper  {
+    return try!  FfiConverterTypeStatusWrapper_lift(try! rustCall() {
+    uniffi_idkit_fn_method_idkitinvitecoderequest_poll_status_once(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Returns the request ID for this request.
+     */
+open func requestId() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_idkit_fn_method_idkitinvitecoderequest_request_id(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+
+    
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeIDKitInviteCodeRequest: FfiConverter {
+    typealias FfiType = UInt64
+    typealias SwiftType = IdKitInviteCodeRequest
+
+    public static func lift(_ handle: UInt64) throws -> IdKitInviteCodeRequest {
+        return IdKitInviteCodeRequest(unsafeFromHandle: handle)
+    }
+
+    public static func lower(_ value: IdKitInviteCodeRequest) -> UInt64 {
+        return value.uniffiCloneHandle()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> IdKitInviteCodeRequest {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func write(_ value: IdKitInviteCodeRequest, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeIDKitInviteCodeRequest_lift(_ handle: UInt64) throws -> IdKitInviteCodeRequest {
+    return try FfiConverterTypeIDKitInviteCodeRequest.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeIDKitInviteCodeRequest_lower(_ value: IdKitInviteCodeRequest) -> UInt64 {
+    return FfiConverterTypeIDKitInviteCodeRequest.lower(value)
 }
 
 
@@ -2291,6 +2577,14 @@ public enum AppError: Equatable, Hashable {
      */
     case credentialUnavailable
     /**
+     * World ID 4.0 credential is not available
+     */
+    case worldId4NotAvailable
+    /**
+     * World ID 3.0 credential is not available
+     */
+    case worldId3NotAvailable
+    /**
      * Malformed request
      */
     case malformedRequest
@@ -2359,6 +2653,10 @@ public enum AppError: Equatable, Hashable {
      */
     case rpSignatureExpired
     /**
+     * Identity attributes did not match the required values
+     */
+    case identityAttributesNotMatched
+    /**
      * Generic error
      */
     case genericError
@@ -2389,41 +2687,47 @@ public struct FfiConverterTypeAppError: FfiConverterRustBuffer {
         
         case 3: return .credentialUnavailable
         
-        case 4: return .malformedRequest
+        case 4: return .worldId4NotAvailable
         
-        case 5: return .invalidNetwork
+        case 5: return .worldId3NotAvailable
         
-        case 6: return .inclusionProofPending
+        case 6: return .malformedRequest
         
-        case 7: return .inclusionProofFailed
+        case 7: return .invalidNetwork
         
-        case 8: return .unexpectedResponse
+        case 8: return .inclusionProofPending
         
-        case 9: return .connectionFailed
+        case 9: return .inclusionProofFailed
         
-        case 10: return .maxVerificationsReached
+        case 10: return .unexpectedResponse
         
-        case 11: return .failedByHostApp
+        case 11: return .connectionFailed
         
-        case 12: return .invalidRpSignature
+        case 12: return .maxVerificationsReached
         
-        case 13: return .nullifierReplayed
+        case 13: return .failedByHostApp
         
-        case 14: return .duplicateNonce
+        case 14: return .invalidRpSignature
         
-        case 15: return .unknownRp
+        case 15: return .nullifierReplayed
         
-        case 16: return .inactiveRp
+        case 16: return .duplicateNonce
         
-        case 17: return .timestampTooOld
+        case 17: return .unknownRp
         
-        case 18: return .timestampTooFarInFuture
+        case 18: return .inactiveRp
         
-        case 19: return .invalidTimestamp
+        case 19: return .timestampTooOld
         
-        case 20: return .rpSignatureExpired
+        case 20: return .timestampTooFarInFuture
         
-        case 21: return .genericError
+        case 21: return .invalidTimestamp
+        
+        case 22: return .rpSignatureExpired
+        
+        case 23: return .identityAttributesNotMatched
+        
+        case 24: return .genericError
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -2445,76 +2749,88 @@ public struct FfiConverterTypeAppError: FfiConverterRustBuffer {
             writeInt(&buf, Int32(3))
         
         
-        case .malformedRequest:
+        case .worldId4NotAvailable:
             writeInt(&buf, Int32(4))
         
         
-        case .invalidNetwork:
+        case .worldId3NotAvailable:
             writeInt(&buf, Int32(5))
         
         
-        case .inclusionProofPending:
+        case .malformedRequest:
             writeInt(&buf, Int32(6))
         
         
-        case .inclusionProofFailed:
+        case .invalidNetwork:
             writeInt(&buf, Int32(7))
         
         
-        case .unexpectedResponse:
+        case .inclusionProofPending:
             writeInt(&buf, Int32(8))
         
         
-        case .connectionFailed:
+        case .inclusionProofFailed:
             writeInt(&buf, Int32(9))
         
         
-        case .maxVerificationsReached:
+        case .unexpectedResponse:
             writeInt(&buf, Int32(10))
         
         
-        case .failedByHostApp:
+        case .connectionFailed:
             writeInt(&buf, Int32(11))
         
         
-        case .invalidRpSignature:
+        case .maxVerificationsReached:
             writeInt(&buf, Int32(12))
         
         
-        case .nullifierReplayed:
+        case .failedByHostApp:
             writeInt(&buf, Int32(13))
         
         
-        case .duplicateNonce:
+        case .invalidRpSignature:
             writeInt(&buf, Int32(14))
         
         
-        case .unknownRp:
+        case .nullifierReplayed:
             writeInt(&buf, Int32(15))
         
         
-        case .inactiveRp:
+        case .duplicateNonce:
             writeInt(&buf, Int32(16))
         
         
-        case .timestampTooOld:
+        case .unknownRp:
             writeInt(&buf, Int32(17))
         
         
-        case .timestampTooFarInFuture:
+        case .inactiveRp:
             writeInt(&buf, Int32(18))
         
         
-        case .invalidTimestamp:
+        case .timestampTooOld:
             writeInt(&buf, Int32(19))
         
         
-        case .rpSignatureExpired:
+        case .timestampTooFarInFuture:
             writeInt(&buf, Int32(20))
         
         
-        case .genericError:
+        case .invalidTimestamp:
             writeInt(&buf, Int32(21))
+        
+        
+        case .rpSignatureExpired:
+            writeInt(&buf, Int32(22))
+        
+        
+        case .identityAttributesNotMatched:
+            writeInt(&buf, Int32(23))
+        
+        
+        case .genericError:
+            writeInt(&buf, Int32(24))
         
         }
     }
@@ -4196,7 +4512,28 @@ private let initializationResult: InitializationResult = {
     if (uniffi_idkit_checksum_method_idkitbuilder_constraints() != 40135) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_idkit_checksum_method_idkitbuilder_constraints_with_invite_code() != 44206) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_idkit_checksum_method_idkitbuilder_preset() != 32095) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_method_idkitbuilder_preset_with_invite_code() != 58047) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_method_idkitinvitecoderequest_connect_url() != 63104) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_method_idkitinvitecoderequest_expires_at() != 11454) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_method_idkitinvitecoderequest_poll_status() != 55045) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_method_idkitinvitecoderequest_poll_status_once() != 63178) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_method_idkitinvitecoderequest_request_id() != 13406) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_idkit_checksum_method_idkitrequestwrapper_connect_url() != 63910) {
