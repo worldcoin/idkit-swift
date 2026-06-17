@@ -54,7 +54,7 @@ public struct Session<Response: Decodable & Sendable>: Sendable {
             }
 
             let experience = data.base64URLEncodedString()
-            let urlString = "https://appclip.apple.com/id?p=org.worldcoin.insight.Clip&experience=\(experience)"
+            let urlString = "https://appclip.apple.com/id?p=org.world.id.Clip&experience=\(experience)"
 
             guard let deferredOnboardingURL = URL(string: urlString) else {
                 throw SessionError.deferredOnboardingURLInvalid(urlString)
