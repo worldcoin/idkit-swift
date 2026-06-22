@@ -1,4 +1,5 @@
 @testable import IDKit
+import Foundation
 import Testing
 
 @Test(.disabled("Run this manually to test the library!")) func testFlow() async throws {
@@ -85,13 +86,80 @@ import Testing
 @Test func testEncodeSignalFormat() throws {
 	// All outputs should have the format: 0x + 64 hex characters
 	let testCases = ["test", "hello", "123", ""]
-	
+
 	for testCase in testCases {
 		let result = try encodeSignal(testCase)
 		#expect(result.hasPrefix("0x"))
 		#expect(result.count == 66)
-		
+
 		let hexPart = String(result.dropFirst(2))
 		#expect(hexPart.allSatisfy { $0.isHexDigit })
 	}
+}
+
+// MARK: - Server-driven URL override Tests
+
+@Test func testVerifyBaseDefaultsToWorldOrg() {
+	// No override → the built-in default (note: world.org, not worldcoin.org).
+	#expect(resolveVerificationBaseURL(nil) == URL(string: "https://world.org/verify")!)
+}
+
+@Test func testVerifyBaseHonorsOverride() {
+	let override = "https://verify.example.com/v"
+	#expect(resolveVerificationBaseURL(override) == URL(string: override)!)
+}
+
+@Test func testVerifyBaseFallsBackOnMalformedOverride() {
+	// A malformed override must never crash or break verification — fall back.
+	#expect(resolveVerificationBaseURL("") == URL(string: "https://world.org/verify")!)
+	#expect(resolveVerificationBaseURL("not a url") == URL(string: "https://world.org/verify")!)
+}
+
+@Test func testAppClipURLDefaultsToWorldcoinBundle() {
+	let url = buildAppClipURL(bundleID: nil, experience: "EXP")
+	#expect(url == "https://appclip.apple.com/id?p=org.worldcoin.insight.Clip&experience=EXP")
+}
+
+@Test func testAppClipURLHonorsBundleIDOverride() {
+	let url = buildAppClipURL(bundleID: "org.example.app.Clip", experience: "EXP")
+	#expect(url == "https://appclip.apple.com/id?p=org.example.app.Clip&experience=EXP")
+}
+
+@Test func testAppClipURLFallsBackOnMalformedBundleID() {
+	// A bundle id with URL-unsafe characters (would break the `p` param) must
+	// fall back to the default rather than producing a broken onboarding URL.
+	#expect(buildAppClipURL(bundleID: "", experience: "EXP")
+		== "https://appclip.apple.com/id?p=org.worldcoin.insight.Clip&experience=EXP")
+	#expect(buildAppClipURL(bundleID: "org.example/../evil&x=1", experience: "EXP")
+		== "https://appclip.apple.com/id?p=org.worldcoin.insight.Clip&experience=EXP")
+}
+
+@Test func testCreateRequestResponseDecodesOverrideMapAndSelectsAppEntry() throws {
+	// The bridge returns the whole map; the SDK picks its own app_id entry.
+	let json = """
+	{"request_id":"00000000-0000-0000-0000-000000000000","app_overrides":{
+		"app_mine":{"app_clip_bundle_id":"org.example.Clip","verify_url":"https://world.org/verify"},
+		"app_other":{"app_clip_bundle_id":"org.other.Clip"}
+	}}
+	""".data(using: .utf8)!
+
+	let decoded = try JSONDecoder().decode(CreateRequestResponse.self, from: json)
+
+	let mine = decoded.app_overrides?["app_mine"]
+	#expect(mine?.app_clip_bundle_id == "org.example.Clip")
+	#expect(mine?.verify_url == "https://world.org/verify")
+
+	// An app not in the map → no override (SDK falls back to defaults).
+	#expect(decoded.app_overrides?["app_absent"] == nil)
+}
+
+@Test func testCreateRequestResponseToleratesMissingOverrideMap() throws {
+	// An older bridge (or one with no overrides configured) returns only
+	// request_id — app_overrides must decode to nil, not throw.
+	let json = """
+	{"request_id":"00000000-0000-0000-0000-000000000000"}
+	""".data(using: .utf8)!
+
+	let decoded = try JSONDecoder().decode(CreateRequestResponse.self, from: json)
+	#expect(decoded.app_overrides == nil)
 }

@@ -19,6 +19,29 @@ public enum SessionError: Error, CustomDebugStringConvertible {
     }
 }
 
+/// The default App Clip bundle id (the `p` value of the App Clip default link)
+/// when the bridge supplies no override.
+let defaultAppClipBundleID = "org.worldcoin.insight.Clip"
+
+/// Whether a server-provided App Clip bundle id is safe to drop into the `p`
+/// parameter of an `appclip.apple.com/id` default link: non-empty and limited
+/// to the URL-safe characters bundle identifiers actually use (ASCII
+/// alphanumerics plus `.` and `-`). Anything else falls back to the default.
+func isValidAppClipBundleID(_ id: String) -> Bool {
+    !id.isEmpty && id.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "." || $0 == "-") }
+}
+
+/// Build the deferred-onboarding App Clip default link from a bundle id and the
+/// per-request `experience`. Only the bundle id (`p`) varies per app — the host,
+/// path, and `experience` mechanism are fixed by the SDK — so the bridge sends
+/// just the bundle id and the SDK assembles a well-formed link deterministically
+/// (no URL parsing / separator guessing). A missing or malformed bundle id falls
+/// back to the built-in default.
+func buildAppClipURL(bundleID override: String?, experience: String) -> String {
+    let bundleID = override.flatMap { isValidAppClipBundleID($0) ? $0 : nil } ?? defaultAppClipBundleID
+    return "https://appclip.apple.com/id?p=\(bundleID)&experience=\(experience)"
+}
+
 /// A World ID session with the Wallet Bridge.
 public struct Session<Response: Decodable & Sendable>: Sendable {
 	public typealias Status = BridgeClient<Response>.Status
@@ -54,7 +77,7 @@ public struct Session<Response: Decodable & Sendable>: Sendable {
             }
 
             let experience = data.base64URLEncodedString()
-            let urlString = "https://appclip.apple.com/id?p=org.worldcoin.insight.Clip&experience=\(experience)"
+            let urlString = buildAppClipURL(bundleID: client.appClipBundleID, experience: experience)
 
             guard let deferredOnboardingURL = URL(string: urlString) else {
                 throw SessionError.deferredOnboardingURLInvalid(urlString)
@@ -97,7 +120,7 @@ public extension Session where Response == Proof {
             verificationLevel: verificationLevel
         )
 
-        client = try await BridgeClient(sending: payload, to: bridgeURL, linkType: "wld")
+        client = try await BridgeClient(sending: payload, appID: appID.rawId, to: bridgeURL, linkType: "wld")
     }
 }
 
@@ -136,7 +159,7 @@ public extension Session where Response == CredentialCategoryProofResponse {
             credentialCategories: credentialCategories
         )
 
-        client = try await BridgeClient(sending: payload, to: bridgeURL, linkType: "cred")
+        client = try await BridgeClient(sending: payload, appID: appID.rawId, to: bridgeURL, linkType: "cred")
     }
 }
 
