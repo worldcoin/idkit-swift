@@ -132,7 +132,7 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 	/// # Errors
 	///
 	/// Throws an error if the request to the bridge fails, or if the response from the bridge is malformed.
-    public init<Request: Codable>(sending payload: Request, appID: String, to bridgeURL: BridgeURL = .default, linkType: String = "wld") async throws {
+    public init<Request: Codable>(sending payload: Request, appID: String? = nil, to bridgeURL: BridgeURL = .default, linkType: String = "wld") async throws {
 		self.bridgeURL = bridgeURL
         self.linkType = linkType
         key = SymmetricKey(size: .bits256)
@@ -144,7 +144,9 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 
         // The bridge returns the whole override map; pick this app's entry (or
         // the catch-all `"*"`) locally. `appID` is never sent to the bridge.
-        let override = selectOverride(response.app_overrides, for: appID)
+        // Optional so direct BridgeClient callers keep their existing signature;
+        // only Session passes it. No appID → no override (built-in defaults).
+        let override = appID.flatMap { selectOverride(response.app_overrides, for: $0) }
         appClipBundleID = override?.app_clip_bundle_id
         verifyURLBase = override?.verify_url
 	}
