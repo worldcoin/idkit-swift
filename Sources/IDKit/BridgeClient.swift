@@ -29,14 +29,15 @@ struct CreateRequestResponse: Codable {
 let defaultVerificationBaseURL = URL(string: "https://world.org/verify")!
 
 /// Whether a server-provided override base is safe to use as a URL: a
-/// well-formed *absolute* http(s) URL with a host. `URL(string:)` is lenient
-/// (e.g. `"not a url"` becomes a relative URL), so we validate explicitly and
-/// fall back to defaults otherwise — untrusted server input must never produce
-/// a broken verification/onboarding URL.
+/// well-formed *absolute* HTTPS URL with a host. HTTP is rejected — a plaintext
+/// verify URL would expose the symmetric `k` query parameter on the network and
+/// wouldn't behave as an iOS universal link, so a misconfigured override must
+/// fall back to the built-in default rather than silently downgrade. `URL(string:)`
+/// is lenient (e.g. `"not a url"` becomes a relative URL), so we validate the
+/// scheme and host explicitly.
 func isUsableOverrideBaseURL(_ string: String) -> Bool {
 	guard let url = URL(string: string),
-	      let scheme = url.scheme?.lowercased(),
-	      scheme == "https" || scheme == "http",
+	      url.scheme?.lowercased() == "https",
 	      url.host?.isEmpty == false
 	else { return false }
 	return true

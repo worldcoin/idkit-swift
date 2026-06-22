@@ -115,6 +115,12 @@ import Testing
 	#expect(resolveVerificationBaseURL("not a url") == URL(string: "https://world.org/verify")!)
 }
 
+@Test func testVerifyBaseRejectsPlaintextHTTP() {
+	// An http:// override would leak the `k` param in cleartext and wouldn't act
+	// as a universal link — it must be rejected and fall back to the HTTPS default.
+	#expect(resolveVerificationBaseURL("http://verify.example.com/v") == URL(string: "https://world.org/verify")!)
+}
+
 @Test func testAppClipURLDefaultsToWorldcoinBundle() {
 	let url = buildAppClipURL(bundleID: nil, experience: "EXP")
 	#expect(url == "https://appclip.apple.com/id?p=org.worldcoin.insight.Clip&experience=EXP")
