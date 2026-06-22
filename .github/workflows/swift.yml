@@ -5,9 +5,9 @@ permissions:
 
 on:
     push:
-        branches: [main]
+        branches: [main, "3.x"]
     pull_request:
-        branches: [main]
+        branches: [main, "3.x"]
 
 jobs:
     tests:
@@ -27,8 +27,6 @@ jobs:
               xcode: "16.4"
             - os: macos-15
               xcode: "26.0.1"
-            - os: macos-26
-              xcode: "16.4"
             - os: macos-26
               xcode: "26.0.1"
         runs-on: ${{ matrix.os }}
