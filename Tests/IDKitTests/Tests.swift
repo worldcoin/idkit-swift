@@ -153,6 +153,26 @@ import Testing
 	#expect(decoded.app_overrides?["app_absent"] == nil)
 }
 
+@Test func testSelectOverridePrefersExactMatchOverWildcard() {
+	let map = [
+		"app_mine": AppOverride(app_clip_bundle_id: "org.mine.Clip", verify_url: nil),
+		"*": AppOverride(app_clip_bundle_id: "org.fallback.Clip", verify_url: nil),
+	]
+	#expect(selectOverride(map, for: "app_mine")?.app_clip_bundle_id == "org.mine.Clip")
+}
+
+@Test func testSelectOverrideFallsBackToWildcard() {
+	// No exact entry → the catch-all "*" applies.
+	let map = ["*": AppOverride(app_clip_bundle_id: "org.fallback.Clip", verify_url: nil)]
+	#expect(selectOverride(map, for: "app_unknown")?.app_clip_bundle_id == "org.fallback.Clip")
+}
+
+@Test func testSelectOverrideNoneWhenNoMatchAndNoWildcard() {
+	let map = ["app_other": AppOverride(app_clip_bundle_id: "org.other.Clip", verify_url: nil)]
+	#expect(selectOverride(map, for: "app_unknown") == nil)
+	#expect(selectOverride(nil, for: "app_unknown") == nil)
+}
+
 @Test func testCreateRequestResponseToleratesMissingOverrideMap() throws {
 	// An older bridge (or one with no overrides configured) returns only
 	// request_id — app_overrides must decode to nil, not throw.

@@ -52,6 +52,13 @@ func resolveVerificationBaseURL(_ override: String?) -> URL {
 	return defaultVerificationBaseURL
 }
 
+/// Pick the override for `appID` from the bridge's map: an exact `app_id` entry
+/// wins; otherwise the catch-all `"*"` entry (a server-set global default)
+/// applies; otherwise `nil` (the SDK keeps its built-in defaults).
+func selectOverride(_ overrides: [String: AppOverride]?, for appID: String) -> AppOverride? {
+	overrides?[appID] ?? overrides?["*"]
+}
+
 /// An abstraction over the Worldcoin Wallet Bridge.
 public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 	/// The status of a verification request.
@@ -134,9 +141,9 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 
         requestID = response.request_id
 
-        // The bridge returns the whole override map; pick this app's entry (if
-        // any) locally. `appID` is never sent to the bridge.
-        let override = response.app_overrides?[appID]
+        // The bridge returns the whole override map; pick this app's entry (or
+        // the catch-all `"*"`) locally. `appID` is never sent to the bridge.
+        let override = selectOverride(response.app_overrides, for: appID)
         appClipBundleID = override?.app_clip_bundle_id
         verifyURLBase = override?.verify_url
 	}
