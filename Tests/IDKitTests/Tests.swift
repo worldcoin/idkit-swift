@@ -179,6 +179,16 @@ import Testing
 	#expect(selectOverride(nil, for: "app_unknown") == nil)
 }
 
+@Test func testCreateRequestBodyOptsIntoAppOverrides() throws {
+	// The SDK must send supports_app_overrides=true or the bridge withholds the
+	// app_overrides map (wallet-bridge #99 gated it behind this opt-in flag).
+	let body = CreateRequestBody(iv: "IV", payload: "PAYLOAD", supports_app_overrides: true)
+	let object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(body)) as! [String: Any]
+	#expect(object["supports_app_overrides"] as? Bool == true)
+	#expect(object["iv"] as? String == "IV")
+	#expect(object["payload"] as? String == "PAYLOAD")
+}
+
 @Test func testCreateRequestResponseToleratesMissingOverrideMap() throws {
 	// An older bridge (or one with no overrides configured) returns only
 	// request_id — app_overrides must decode to nil, not throw.

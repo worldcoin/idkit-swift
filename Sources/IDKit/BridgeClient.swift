@@ -15,12 +15,23 @@ struct AppOverride: Codable {
 	let verify_url: String?
 }
 
+/// The body sent to `POST /request`: the opaque encrypted `iv`/`payload` plus
+/// the capability flag. The bridge only returns `app_overrides` when
+/// `supports_app_overrides` is `true`; this SDK can parse that field, so it
+/// always opts in. (The flag exists because adding the field unconditionally
+/// broke shipped strict-decoder clients — see wallet-bridge #99.)
+struct CreateRequestBody: Encodable {
+	let iv: String
+	let payload: String
+	let supports_app_overrides: Bool
+}
+
 /// The decoded `POST /request` response from the Wallet Bridge.
 struct CreateRequestResponse: Codable {
 	let request_id: UUID
 	/// The full server-driven override map (`app_id → AppOverride`), returned
 	/// verbatim by the bridge. The SDK selects its own `app_id` entry locally.
-	/// Absent when no overrides are configured (or against an older bridge) —
+	/// Absent when no overrides are configured (or the client didn't opt in) —
 	/// the SDK then keeps its built-in defaults.
 	let app_overrides: [String: AppOverride]?
 }
@@ -212,8 +223,11 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 	private static func create_request(_ data: Payload, bridgeURL: BridgeURL) async throws -> CreateRequestResponse {
 		var request = URLRequest(url: bridgeURL.rawURL.appendingPathComponent("request"))
 
+		// Opt into the gated `app_overrides` response field (wallet-bridge #99).
+		let body = CreateRequestBody(iv: data.iv, payload: data.payload, supports_app_overrides: true)
+
 		request.httpMethod = "POST"
-		request.httpBody = try JSONEncoder().encode(data)
+		request.httpBody = try JSONEncoder().encode(body)
 
 		request.setValue("idkit-swift", forHTTPHeaderField: "User-Agent")
 		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
