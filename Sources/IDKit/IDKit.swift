@@ -1,8 +1,121 @@
 import Foundation
 
-public typealias IDKitRequestConfig = IdKitRequestConfig
-public typealias IDKitSessionConfig = IdKitSessionConfig
+private let sdkPackageName = "idkit_swift"
+
 public typealias IDKitResult = IdKitResult
+
+/// Typed projection of the bridge request payload, exposed for building test fixtures.
+public typealias BridgeRequestPayload = BridgeRequestPayloadWrapper
+/// Protocol-level proof request inside a ``BridgeRequestPayload``.
+public typealias ProofRequest = ProofRequestWrapper
+/// A per-credential request line item inside a ``ProofRequest``.
+public typealias CredentialRequestItem = CredentialRequestWrapper
+
+/// Configuration for uniqueness proof requests.
+public struct IDKitRequestConfig {
+    public let appId: String
+    public let action: String
+    public let rpContext: RpContext
+    public let actionDescription: String?
+    public let bridgeUrl: String?
+    public let allowLegacyProofs: Bool
+    public let requireUserPresence: Bool
+    public let overrideConnectBaseUrl: String?
+    public let returnTo: String?
+    public let environment: Environment?
+    public let connectUrlMode: ConnectUrlMode?
+
+    public init(
+        appId: String,
+        action: String,
+        rpContext: RpContext,
+        actionDescription: String? = nil,
+        bridgeUrl: String? = nil,
+        allowLegacyProofs: Bool = false,
+        requireUserPresence: Bool = false,
+        overrideConnectBaseUrl: String? = nil,
+        returnTo: String? = nil,
+        environment: Environment? = nil,
+        connectUrlMode: ConnectUrlMode? = nil
+    ) {
+        self.appId = appId
+        self.action = action
+        self.rpContext = rpContext
+        self.actionDescription = actionDescription
+        self.bridgeUrl = bridgeUrl
+        self.allowLegacyProofs = allowLegacyProofs
+        self.requireUserPresence = requireUserPresence
+        self.overrideConnectBaseUrl = overrideConnectBaseUrl
+        self.returnTo = returnTo
+        self.environment = environment
+        self.connectUrlMode = connectUrlMode
+    }
+
+    fileprivate var native: IdKitRequestConfig {
+        IdKitRequestConfig(
+            appId: appId,
+            packageName: sdkPackageName,
+            packageVersion: IDKit.version,
+            action: action,
+            rpContext: rpContext,
+            actionDescription: actionDescription,
+            bridgeUrl: bridgeUrl,
+            allowLegacyProofs: allowLegacyProofs,
+            requireUserPresence: requireUserPresence,
+            overrideConnectBaseUrl: overrideConnectBaseUrl,
+            returnTo: returnTo,
+            environment: environment,
+            connectUrlMode: connectUrlMode
+        )
+    }
+}
+
+/// Configuration for session requests.
+public struct IDKitSessionConfig {
+    public let appId: String
+    public let rpContext: RpContext
+    public let actionDescription: String?
+    public let bridgeUrl: String?
+    public let requireUserPresence: Bool
+    public let overrideConnectBaseUrl: String?
+    public let returnTo: String?
+    public let environment: Environment?
+
+    public init(
+        appId: String,
+        rpContext: RpContext,
+        actionDescription: String? = nil,
+        bridgeUrl: String? = nil,
+        requireUserPresence: Bool = false,
+        overrideConnectBaseUrl: String? = nil,
+        returnTo: String? = nil,
+        environment: Environment? = nil
+    ) {
+        self.appId = appId
+        self.rpContext = rpContext
+        self.actionDescription = actionDescription
+        self.bridgeUrl = bridgeUrl
+        self.requireUserPresence = requireUserPresence
+        self.overrideConnectBaseUrl = overrideConnectBaseUrl
+        self.returnTo = returnTo
+        self.environment = environment
+    }
+
+    fileprivate var native: IdKitSessionConfig {
+        IdKitSessionConfig(
+            appId: appId,
+            packageName: sdkPackageName,
+            packageVersion: IDKit.version,
+            rpContext: rpContext,
+            actionDescription: actionDescription,
+            bridgeUrl: bridgeUrl,
+            requireUserPresence: requireUserPresence,
+            overrideConnectBaseUrl: overrideConnectBaseUrl,
+            returnTo: returnTo,
+            environment: environment
+        )
+    }
+}
 
 /// Main entry point for IDKit Swift SDK.
 public enum IDKit {
@@ -10,18 +123,36 @@ public enum IDKit {
 
     /// Creates a builder for uniqueness proof requests.
     public static func request(config: IDKitRequestConfig) -> IDKitBuilder {
-        IDKitBuilder(inner: IdKitBuilder.fromRequest(config: config))
+        IDKitBuilder(inner: IdKitBuilder.fromRequest(config: config.native))
+    }
+
+    /// Builds the bridge request payload from a preset without opening a network
+    /// connection. Intended for building test fixtures.
+    public static func createBridgePayloadFromPresets(
+        config: IDKitRequestConfig, preset: Preset
+    ) throws -> BridgeRequestPayload {
+        try IdKitBuilder.fromRequest(config: config.native)
+            .bridgeRequestPayloadFromPreset(preset: preset)
+    }
+
+    /// Builds the bridge request payload from custom constraints without opening a
+    /// network connection. Intended for building test fixtures.
+    public static func createBridgePayloadFromConstraints(
+        config: IDKitRequestConfig, constraints: ConstraintNode
+    ) throws -> BridgeRequestPayload {
+        try IdKitBuilder.fromRequest(config: config.native)
+            .bridgeRequestPayload(constraints: constraints)
     }
 
     // TODO: Re-enable when World ID 4.0 is live
     // /// Creates a builder for creating a new session.
     // public static func createSession(config: IDKitSessionConfig) -> IDKitBuilder {
-    //     IDKitBuilder(inner: IdKitBuilder.fromCreateSession(config: config))
+    //     IDKitBuilder(inner: IdKitBuilder.fromCreateSession(config: config.native))
     // }
 
     // /// Creates a builder for proving an existing session.
     // public static func proveSession(sessionId: String, config: IDKitSessionConfig) -> IDKitBuilder {
-    //     IDKitBuilder(inner: IdKitBuilder.fromProveSession(sessionId: sessionId, config: config))
+    //     IDKitBuilder(inner: IdKitBuilder.fromProveSession(sessionId: sessionId, config: config.native))
     // }
 
     /// Hashes a string signal to the canonical 0x-prefixed field element string.
@@ -43,11 +174,10 @@ public final class IDKitBuilder {
         self.inner = inner
     }
 
-    // TODO: Re-enable when World ID 4.0 is live
-    // public func constraints(_ constraints: ConstraintNode) throws -> IDKitRequest {
-    //     let request = try inner.constraints(constraints: constraints)
-    //     return try IDKitRequest(inner: request)
-    // }
+    public func constraints(_ constraints: ConstraintNode) throws -> IDKitRequest {
+        let request = try inner.constraints(constraints: constraints)
+        return try IDKitRequest(inner: request)
+    }
 
     // TODO: Re-enable when World ID 4.0 is live
     // public func constraintsWithInviteCode(_ constraints: ConstraintNode) throws -> IDKitInviteCodeRequest {
@@ -115,6 +245,7 @@ public enum IDKitErrorCode: String, Equatable {
     case connectionFailed = "connection_failed"
     case maxVerificationsReached = "max_verifications_reached"
     case failedByHostApp = "failed_by_host_app"
+    case userPresenceFailed = "user_presence_failed"
     case invalidRpSignature = "invalid_rp_signature"
     case nullifierReplayed = "nullifier_replayed"
     case duplicateNonce = "duplicate_nonce"
@@ -157,6 +288,8 @@ public enum IDKitErrorCode: String, Equatable {
             .maxVerificationsReached
         case .failedByHostApp:
             .failedByHostApp
+        case .userPresenceFailed:
+            .userPresenceFailed
         case .invalidRpSignature:
             .invalidRpSignature
         case .nullifierReplayed:
@@ -478,6 +611,11 @@ public func selfieCheckLegacy(signal: String? = nil) -> Preset {
     .selfieCheckLegacy(signal: signal)
 }
 
+/// Returns the identity check preset.
+public func identityCheck(attributes: [IdentityAttribute], legacySignal: String? = nil) -> Preset {
+    .identityCheck(attributes: attributes, legacySignal: legacySignal)
+}
+
 // TODO: Re-enable when World ID 4.0 is live
 // private struct CredentialRequestJSON: Encodable {
 //     let type: String
@@ -517,5 +655,19 @@ public extension Signal {
 
     var stringValue: String? {
         self.asString()
+    }
+}
+
+extension ProofRequest {
+    /// Credential identifiers from `proofRequests` (e.g. `["passport", "mnc"]`).
+    public var credentialIdentifiers: [String] {
+        proofRequests.map(\.identifier)
+    }
+}
+
+extension BridgeRequestPayload {
+    /// Credential identifiers when a v4 `proofRequest` is present; empty otherwise.
+    public var credentialIdentifiers: [String] {
+        proofRequest?.credentialIdentifiers ?? []
     }
 }
