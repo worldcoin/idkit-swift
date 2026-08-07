@@ -2840,8 +2840,9 @@ public struct IdKitResult: Equatable, Hashable {
     public var responses: [ResponseItem]
     /**
      * Whether World App completed the requested user-presence check.
+     * Only present when user presence was requested.
      */
-    public var userPresenceCompleted: Bool
+    public var userPresenceCompleted: Bool?
     /**
      * The environment used for this request ("production", "staging", or "sandbox")
      */
@@ -2880,7 +2881,8 @@ public struct IdKitResult: Equatable, Hashable {
          */responses: [ResponseItem], 
         /**
          * Whether World App completed the requested user-presence check.
-         */userPresenceCompleted: Bool, 
+         * Only present when user presence was requested.
+         */userPresenceCompleted: Bool?, 
         /**
          * The environment used for this request ("production", "staging", or "sandbox")
          */environment: String, 
@@ -2925,7 +2927,7 @@ public struct FfiConverterTypeIDKitResult: FfiConverterRustBuffer {
                 actionDescription: FfiConverterOptionString.read(from: &buf), 
                 sessionId: FfiConverterOptionString.read(from: &buf), 
                 responses: FfiConverterSequenceTypeResponseItem.read(from: &buf), 
-                userPresenceCompleted: FfiConverterBool.read(from: &buf), 
+                userPresenceCompleted: FfiConverterOptionBool.read(from: &buf), 
                 environment: FfiConverterString.read(from: &buf), 
                 identityAttested: FfiConverterOptionBool.read(from: &buf), 
                 integrityBundle: FfiConverterOptionTypeIntegrityBundle.read(from: &buf)
@@ -2939,7 +2941,7 @@ public struct FfiConverterTypeIDKitResult: FfiConverterRustBuffer {
         FfiConverterOptionString.write(value.actionDescription, into: &buf)
         FfiConverterOptionString.write(value.sessionId, into: &buf)
         FfiConverterSequenceTypeResponseItem.write(value.responses, into: &buf)
-        FfiConverterBool.write(value.userPresenceCompleted, into: &buf)
+        FfiConverterOptionBool.write(value.userPresenceCompleted, into: &buf)
         FfiConverterString.write(value.environment, into: &buf)
         FfiConverterOptionBool.write(value.identityAttested, into: &buf)
         FfiConverterOptionTypeIntegrityBundle.write(value.integrityBundle, into: &buf)
