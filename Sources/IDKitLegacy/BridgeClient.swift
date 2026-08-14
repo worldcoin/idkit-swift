@@ -4,6 +4,73 @@ import Foundation
 import FoundationNetworking
 #endif
 
+/// A single per-`app_id` URL override entry, as returned by the bridge. Both
+/// fields are independently optional.
+///
+/// - `app_clip_bundle_id`: the App Clip's bundle identifier (the `p` parameter
+///   of an `appclip.apple.com/id` default link). The SDK builds the full link.
+/// - `verify_url`: a verify *base* URL the SDK decorates with query params.
+struct AppOverride: Codable {
+	let app_clip_bundle_id: String?
+	let verify_url: String?
+}
+
+/// The body sent to `POST /request`: the opaque encrypted `iv`/`payload` plus
+/// the capability flag. The bridge only returns `app_overrides` when
+/// `supports_app_overrides` is `true`; this SDK can parse that field, so it
+/// always opts in. (The flag exists because adding the field unconditionally
+/// broke shipped strict-decoder clients — see wallet-bridge #99.)
+struct CreateRequestBody: Encodable {
+	let iv: String
+	let payload: String
+	let supports_app_overrides: Bool
+}
+
+/// The decoded `POST /request` response from the Wallet Bridge.
+struct CreateRequestResponse: Codable {
+	let request_id: UUID
+	/// The full server-driven override map (`app_id → AppOverride`), returned
+	/// verbatim by the bridge. The SDK selects its own `app_id` entry locally.
+	/// Absent when no overrides are configured (or the client didn't opt in) —
+	/// the SDK then keeps its built-in defaults.
+	let app_overrides: [String: AppOverride]?
+}
+
+/// The default verify base URL when the bridge supplies no override.
+let defaultVerificationBaseURL = URL(string: "https://world.org/verify")!
+
+/// Whether a server-provided override base is safe to use as a URL: a
+/// well-formed *absolute* HTTPS URL with a host. HTTP is rejected — a plaintext
+/// verify URL would expose the symmetric `k` query parameter on the network and
+/// wouldn't behave as an iOS universal link, so a misconfigured override must
+/// fall back to the built-in default rather than silently downgrade. `URL(string:)`
+/// is lenient (e.g. `"not a url"` becomes a relative URL), so we validate the
+/// scheme and host explicitly.
+func isUsableOverrideBaseURL(_ string: String) -> Bool {
+	guard let url = URL(string: string),
+	      url.scheme?.lowercased() == "https",
+	      url.host?.isEmpty == false
+	else { return false }
+	return true
+}
+
+/// Resolve the verify *base* URL: prefer the server-driven override when it is
+/// a usable absolute URL, otherwise fall back to the built-in default. A
+/// malformed override must never crash or break verification.
+func resolveVerificationBaseURL(_ override: String?) -> URL {
+	if let override, isUsableOverrideBaseURL(override), let url = URL(string: override) {
+		return url
+	}
+	return defaultVerificationBaseURL
+}
+
+/// Pick the override for `appID` from the bridge's map: an exact `app_id` entry
+/// wins; otherwise the catch-all `"*"` entry (a server-set global default)
+/// applies; otherwise `nil` (the SDK keeps its built-in defaults).
+func selectOverride(_ overrides: [String: AppOverride]?, for appID: String) -> AppOverride? {
+	overrides?[appID] ?? overrides?["*"]
+}
+
 /// An abstraction over the Worldcoin Wallet Bridge.
 public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 	/// The status of a verification request.
@@ -31,10 +98,6 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 		}
 	}
 
-	private struct CreateRequestResponse: Codable {
-		let request_id: UUID
-	}
-
 	private struct BridgeQueryResponse: Codable {
 		let status: String
 		let response: Payload?
@@ -45,6 +108,11 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 	let iv: AES.GCM.Nonce
 	let bridgeURL: BridgeURL
     let linkType: String
+	/// Server-driven overrides for this session's `app_id`, or `nil` to use the
+	/// built-in defaults. `appClipBundleID` is the App Clip default-link `p`
+	/// value; `verifyURLBase` is a verify base URL the SDK decorates.
+	let appClipBundleID: String?
+	let verifyURLBase: String?
 
 	/// The URL that the user should be directed to in order to connect their World App to the client.
     @available(*, deprecated, renamed: "connectURL", message: "Prefer connectURL over connect_url")
@@ -64,7 +132,10 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
             queryParams.append(URLQueryItem(name: "b", value: bridgeURL.rawURL.absoluteString))
         }
 
-        return URL(string: "https://worldcoin.org/verify")!.appending(queryItems: queryParams)
+        // Prefer the server-driven verify base when present, but never trust it
+        // blindly: a malformed override falls back to the built-in default
+        // rather than crashing.
+        return resolveVerificationBaseURL(verifyURLBase).appending(queryItems: queryParams)
     }
 
 	/// Create a new session with the Wallet Bridge.
@@ -72,7 +143,7 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 	/// # Errors
 	///
 	/// Throws an error if the request to the bridge fails, or if the response from the bridge is malformed.
-    public init<Request: Codable>(sending payload: Request, to bridgeURL: BridgeURL = .default, linkType: String = "wld") async throws {
+    public init<Request: Codable>(sending payload: Request, appID: String? = nil, to bridgeURL: BridgeURL = .default, linkType: String = "wld") async throws {
 		self.bridgeURL = bridgeURL
         self.linkType = linkType
         key = SymmetricKey(size: .bits256)
@@ -81,6 +152,14 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
         let response = try await Self.create_request(payload.encrypt(with: key, nonce: iv), bridgeURL: bridgeURL)
 
         requestID = response.request_id
+
+        // The bridge returns the whole override map; pick this app's entry (or
+        // the catch-all `"*"`) locally. `appID` is never sent to the bridge.
+        // Optional so direct BridgeClient callers keep their existing signature;
+        // only Session passes it. No appID → no override (built-in defaults).
+        let override = appID.flatMap { selectOverride(response.app_overrides, for: $0) }
+        appClipBundleID = override?.app_clip_bundle_id
+        verifyURLBase = override?.verify_url
 	}
 
 	/// Retrieve the status of the verification request.
@@ -144,8 +223,11 @@ public struct BridgeClient<Response: Decodable & Sendable>: Sendable {
 	private static func create_request(_ data: Payload, bridgeURL: BridgeURL) async throws -> CreateRequestResponse {
 		var request = URLRequest(url: bridgeURL.rawURL.appendingPathComponent("request"))
 
+		// Opt into the gated `app_overrides` response field (wallet-bridge #99).
+		let body = CreateRequestBody(iv: data.iv, payload: data.payload, supports_app_overrides: true)
+
 		request.httpMethod = "POST"
-		request.httpBody = try JSONEncoder().encode(data)
+		request.httpBody = try JSONEncoder().encode(body)
 
 		request.setValue("idkit-swift", forHTTPHeaderField: "User-Agent")
 		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
