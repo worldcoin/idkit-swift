@@ -119,7 +119,7 @@ public struct IDKitSessionConfig {
 
 /// Main entry point for IDKit Swift SDK.
 public enum IDKit {
-    public static let version = "4.0.11"
+    public static let version = "4.1.0"
 
     /// Creates a builder for uniqueness proof requests.
     public static func request(config: IDKitRequestConfig) -> IDKitBuilder {
@@ -235,6 +235,7 @@ public enum IDKitErrorCode: String, Equatable {
     case userRejected = "user_rejected"
     case verificationRejected = "verification_rejected"
     case credentialUnavailable = "credential_unavailable"
+    case featureUnavailable = "feature_unavailable"
     case worldId4NotAvailable = "world_id_4_not_available"
     case worldId3NotAvailable = "world_id_3_not_available"
     case malformedRequest = "malformed_request"
@@ -268,6 +269,8 @@ public enum IDKitErrorCode: String, Equatable {
             .verificationRejected
         case .credentialUnavailable:
             .credentialUnavailable
+        case .featureUnavailable:
+            .featureUnavailable
         case .worldId4NotAvailable:
             .worldId4NotAvailable
         case .worldId3NotAvailable:
@@ -609,6 +612,13 @@ public func deviceLegacy(signal: String? = nil) -> Preset {
 /// Preview: Selfie Check is currently in preview. Contact us if you need it enabled.
 public func selfieCheckLegacy(signal: String? = nil) -> Preset {
     .selfieCheckLegacy(signal: signal)
+}
+
+/// Creates a `SelfieCheck` preset.
+///
+/// The preset requests the Selfie Check credential and always disables fallback to legacy proofs.
+public func selfieCheck(signal: String? = nil) -> Preset {
+    .selfieCheck(signal: signal)
 }
 
 /// Returns the identity check preset.

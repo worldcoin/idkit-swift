@@ -3337,6 +3337,10 @@ public enum AppError: Equatable, Hashable {
      */
     case credentialUnavailable
     /**
+     * Requested feature is not enabled for the app
+     */
+    case featureUnavailable
+    /**
      * World ID 4.0 credential is not available
      */
     case worldId4NotAvailable
@@ -3451,49 +3455,51 @@ public struct FfiConverterTypeAppError: FfiConverterRustBuffer {
         
         case 3: return .credentialUnavailable
         
-        case 4: return .worldId4NotAvailable
+        case 4: return .featureUnavailable
         
-        case 5: return .worldId3NotAvailable
+        case 5: return .worldId4NotAvailable
         
-        case 6: return .malformedRequest
+        case 6: return .worldId3NotAvailable
         
-        case 7: return .invalidNetwork
+        case 7: return .malformedRequest
         
-        case 8: return .inclusionProofPending
+        case 8: return .invalidNetwork
         
-        case 9: return .inclusionProofFailed
+        case 9: return .inclusionProofPending
         
-        case 10: return .unexpectedResponse
+        case 10: return .inclusionProofFailed
         
-        case 11: return .connectionFailed
+        case 11: return .unexpectedResponse
         
-        case 12: return .maxVerificationsReached
+        case 12: return .connectionFailed
         
-        case 13: return .failedByHostApp
+        case 13: return .maxVerificationsReached
         
-        case 14: return .userPresenceFailed
+        case 14: return .failedByHostApp
         
-        case 15: return .invalidRpSignature
+        case 15: return .userPresenceFailed
         
-        case 16: return .nullifierReplayed
+        case 16: return .invalidRpSignature
         
-        case 17: return .duplicateNonce
+        case 17: return .nullifierReplayed
         
-        case 18: return .unknownRp
+        case 18: return .duplicateNonce
         
-        case 19: return .inactiveRp
+        case 19: return .unknownRp
         
-        case 20: return .timestampTooOld
+        case 20: return .inactiveRp
         
-        case 21: return .timestampTooFarInFuture
+        case 21: return .timestampTooOld
         
-        case 22: return .invalidTimestamp
+        case 22: return .timestampTooFarInFuture
         
-        case 23: return .rpSignatureExpired
+        case 23: return .invalidTimestamp
         
-        case 24: return .identityAttributesNotMatched
+        case 24: return .rpSignatureExpired
         
-        case 25: return .genericError
+        case 25: return .identityAttributesNotMatched
+        
+        case 26: return .genericError
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -3515,92 +3521,96 @@ public struct FfiConverterTypeAppError: FfiConverterRustBuffer {
             writeInt(&buf, Int32(3))
         
         
-        case .worldId4NotAvailable:
+        case .featureUnavailable:
             writeInt(&buf, Int32(4))
         
         
-        case .worldId3NotAvailable:
+        case .worldId4NotAvailable:
             writeInt(&buf, Int32(5))
         
         
-        case .malformedRequest:
+        case .worldId3NotAvailable:
             writeInt(&buf, Int32(6))
         
         
-        case .invalidNetwork:
+        case .malformedRequest:
             writeInt(&buf, Int32(7))
         
         
-        case .inclusionProofPending:
+        case .invalidNetwork:
             writeInt(&buf, Int32(8))
         
         
-        case .inclusionProofFailed:
+        case .inclusionProofPending:
             writeInt(&buf, Int32(9))
         
         
-        case .unexpectedResponse:
+        case .inclusionProofFailed:
             writeInt(&buf, Int32(10))
         
         
-        case .connectionFailed:
+        case .unexpectedResponse:
             writeInt(&buf, Int32(11))
         
         
-        case .maxVerificationsReached:
+        case .connectionFailed:
             writeInt(&buf, Int32(12))
         
         
-        case .failedByHostApp:
+        case .maxVerificationsReached:
             writeInt(&buf, Int32(13))
         
         
-        case .userPresenceFailed:
+        case .failedByHostApp:
             writeInt(&buf, Int32(14))
         
         
-        case .invalidRpSignature:
+        case .userPresenceFailed:
             writeInt(&buf, Int32(15))
         
         
-        case .nullifierReplayed:
+        case .invalidRpSignature:
             writeInt(&buf, Int32(16))
         
         
-        case .duplicateNonce:
+        case .nullifierReplayed:
             writeInt(&buf, Int32(17))
         
         
-        case .unknownRp:
+        case .duplicateNonce:
             writeInt(&buf, Int32(18))
         
         
-        case .inactiveRp:
+        case .unknownRp:
             writeInt(&buf, Int32(19))
         
         
-        case .timestampTooOld:
+        case .inactiveRp:
             writeInt(&buf, Int32(20))
         
         
-        case .timestampTooFarInFuture:
+        case .timestampTooOld:
             writeInt(&buf, Int32(21))
         
         
-        case .invalidTimestamp:
+        case .timestampTooFarInFuture:
             writeInt(&buf, Int32(22))
         
         
-        case .rpSignatureExpired:
+        case .invalidTimestamp:
             writeInt(&buf, Int32(23))
         
         
-        case .identityAttributesNotMatched:
+        case .rpSignatureExpired:
             writeInt(&buf, Int32(24))
         
         
-        case .genericError:
+        case .identityAttributesNotMatched:
             writeInt(&buf, Int32(25))
+        
+        
+        case .genericError:
+            writeInt(&buf, Int32(26))
         
         }
     }
@@ -4457,9 +4467,8 @@ public func FfiConverterTypeIntegritySignatureFormat_lower(_ value: IntegritySig
 /**
  * Credential presets for World ID verification
  *
- * Each preset defines a pre-configured set of credential requests
- * with sensible defaults. Presets convert to both World ID 4.0
- * (requests array) and World ID 3.0 (`verification_level`) formats.
+ * Each preset defines a pre-configured set of credential requests with sensible defaults.
+ * Compatibility behavior, including fallback to legacy proofs, is documented by each preset.
  */
 
 public enum Preset: Equatable, Hashable {
@@ -4520,6 +4529,18 @@ public enum Preset: Equatable, Hashable {
         /**
          * Optional signal to include in the proof.
          * Can be a plain string or hex-encoded ABI value (with 0x prefix).
+         */signal: String?
+    )
+    /**
+     * Creates a `SelfieCheck` preset.
+     *
+     * The preset requests the Selfie Check credential and always disables fallback to legacy
+     * proofs.
+     */
+    case selfieCheck(
+        /**
+         * Optional signal to bind to the proof.
+         * Can be a plain string or a hex-encoded value with a `0x` prefix.
          */signal: String?
     )
     /**
@@ -4621,19 +4642,22 @@ public struct FfiConverterTypePreset: FfiConverterRustBuffer {
         case 4: return .selfieCheckLegacy(signal: try FfiConverterOptionString.read(from: &buf)
         )
         
-        case 5: return .deviceLegacy(signal: try FfiConverterOptionString.read(from: &buf)
+        case 5: return .selfieCheck(signal: try FfiConverterOptionString.read(from: &buf)
         )
         
-        case 6: return .proofOfHuman(signal: try FfiConverterOptionString.read(from: &buf)
+        case 6: return .deviceLegacy(signal: try FfiConverterOptionString.read(from: &buf)
         )
         
-        case 7: return .passport(signal: try FfiConverterOptionString.read(from: &buf)
+        case 7: return .proofOfHuman(signal: try FfiConverterOptionString.read(from: &buf)
         )
         
-        case 8: return .mnc(signal: try FfiConverterOptionString.read(from: &buf)
+        case 8: return .passport(signal: try FfiConverterOptionString.read(from: &buf)
         )
         
-        case 9: return .identityCheck(attributes: try FfiConverterSequenceTypeIdentityAttribute.read(from: &buf), legacySignal: try FfiConverterOptionString.read(from: &buf)
+        case 9: return .mnc(signal: try FfiConverterOptionString.read(from: &buf)
+        )
+        
+        case 10: return .identityCheck(attributes: try FfiConverterSequenceTypeIdentityAttribute.read(from: &buf), legacySignal: try FfiConverterOptionString.read(from: &buf)
         )
         
         default: throw UniffiInternalError.unexpectedEnumCase
@@ -4664,28 +4688,33 @@ public struct FfiConverterTypePreset: FfiConverterRustBuffer {
             FfiConverterOptionString.write(signal, into: &buf)
             
         
-        case let .deviceLegacy(signal):
+        case let .selfieCheck(signal):
             writeInt(&buf, Int32(5))
             FfiConverterOptionString.write(signal, into: &buf)
             
         
-        case let .proofOfHuman(signal):
+        case let .deviceLegacy(signal):
             writeInt(&buf, Int32(6))
             FfiConverterOptionString.write(signal, into: &buf)
             
         
-        case let .passport(signal):
+        case let .proofOfHuman(signal):
             writeInt(&buf, Int32(7))
             FfiConverterOptionString.write(signal, into: &buf)
             
         
-        case let .mnc(signal):
+        case let .passport(signal):
             writeInt(&buf, Int32(8))
             FfiConverterOptionString.write(signal, into: &buf)
             
         
-        case let .identityCheck(attributes,legacySignal):
+        case let .mnc(signal):
             writeInt(&buf, Int32(9))
+            FfiConverterOptionString.write(signal, into: &buf)
+            
+        
+        case let .identityCheck(attributes,legacySignal):
+            writeInt(&buf, Int32(10))
             FfiConverterSequenceTypeIdentityAttribute.write(attributes, into: &buf)
             FfiConverterOptionString.write(legacySignal, into: &buf)
             
@@ -4722,6 +4751,32 @@ public func FfiConverterTypePreset_lower(_ value: Preset) -> RustBuffer {
 public enum ResponseItem: Equatable, Hashable {
     
     /**
+     * Self Check response for a World ID v4 uniqueness proof.
+     */
+    case selfieV4(
+        /**
+         * Credential identifier (`"selfie"`)
+         */identifier: String, 
+        /**
+         * Signal hash (optional, included if signal was provided in request)
+         */signalHash: String?, 
+        /**
+         * Self Check issuer schema ID
+         */issuerSchemaId: UInt64, 
+        /**
+         * Encoded World ID proof: the compressed Groth16 proof followed by the Merkle root.
+         */proof: [String], 
+        /**
+         * RP-scoped nullifier (hex string)
+         */nullifier: String, 
+        /**
+         * Minimum expiration timestamp for the proof
+         */expiresAtMin: UInt64, 
+        /**
+         * Self Check 4.0 z-score, encoded by the issuer as an integer.
+         */sybilScore: UInt64
+    )
+    /**
      * Protocol version 4.0 (World ID v4)
      */
     case v4(
@@ -4748,6 +4803,32 @@ public enum ResponseItem: Equatable, Hashable {
         /**
          * Minimum expiration timestamp for the proof
          */expiresAtMin: UInt64
+    )
+    /**
+     * Self Check response for a World ID v4 session proof.
+     */
+    case selfieSession(
+        /**
+         * Credential identifier (`"selfie"`)
+         */identifier: String, 
+        /**
+         * Signal hash (optional, included if signal was provided in request)
+         */signalHash: String?, 
+        /**
+         * Self Check issuer schema ID
+         */issuerSchemaId: UInt64, 
+        /**
+         * Encoded World ID proof: the compressed Groth16 proof followed by the Merkle root.
+         */proof: [String], 
+        /**
+         * Session nullifier: `[nullifier, action]`
+         */sessionNullifier: [String], 
+        /**
+         * Minimum expiration timestamp for the proof
+         */expiresAtMin: UInt64, 
+        /**
+         * Self Check 4.0 z-score, encoded by the issuer as an integer.
+         */sybilScore: UInt64
     )
     /**
      * Session proof (World ID v4 sessions)
@@ -4821,13 +4902,19 @@ public struct FfiConverterTypeResponseItem: FfiConverterRustBuffer {
         let variant: Int32 = try readInt(&buf)
         switch variant {
         
-        case 1: return .v4(identifier: try FfiConverterString.read(from: &buf), signalHash: try FfiConverterOptionString.read(from: &buf), issuerSchemaId: try FfiConverterUInt64.read(from: &buf), proof: try FfiConverterSequenceString.read(from: &buf), nullifier: try FfiConverterString.read(from: &buf), expiresAtMin: try FfiConverterUInt64.read(from: &buf)
+        case 1: return .selfieV4(identifier: try FfiConverterString.read(from: &buf), signalHash: try FfiConverterOptionString.read(from: &buf), issuerSchemaId: try FfiConverterUInt64.read(from: &buf), proof: try FfiConverterSequenceString.read(from: &buf), nullifier: try FfiConverterString.read(from: &buf), expiresAtMin: try FfiConverterUInt64.read(from: &buf), sybilScore: try FfiConverterUInt64.read(from: &buf)
         )
         
-        case 2: return .session(identifier: try FfiConverterString.read(from: &buf), signalHash: try FfiConverterOptionString.read(from: &buf), issuerSchemaId: try FfiConverterUInt64.read(from: &buf), proof: try FfiConverterSequenceString.read(from: &buf), sessionNullifier: try FfiConverterSequenceString.read(from: &buf), expiresAtMin: try FfiConverterUInt64.read(from: &buf)
+        case 2: return .v4(identifier: try FfiConverterString.read(from: &buf), signalHash: try FfiConverterOptionString.read(from: &buf), issuerSchemaId: try FfiConverterUInt64.read(from: &buf), proof: try FfiConverterSequenceString.read(from: &buf), nullifier: try FfiConverterString.read(from: &buf), expiresAtMin: try FfiConverterUInt64.read(from: &buf)
         )
         
-        case 3: return .v3(identifier: try FfiConverterString.read(from: &buf), signalHash: try FfiConverterString.read(from: &buf), proof: try FfiConverterString.read(from: &buf), merkleRoot: try FfiConverterString.read(from: &buf), nullifier: try FfiConverterString.read(from: &buf)
+        case 3: return .selfieSession(identifier: try FfiConverterString.read(from: &buf), signalHash: try FfiConverterOptionString.read(from: &buf), issuerSchemaId: try FfiConverterUInt64.read(from: &buf), proof: try FfiConverterSequenceString.read(from: &buf), sessionNullifier: try FfiConverterSequenceString.read(from: &buf), expiresAtMin: try FfiConverterUInt64.read(from: &buf), sybilScore: try FfiConverterUInt64.read(from: &buf)
+        )
+        
+        case 4: return .session(identifier: try FfiConverterString.read(from: &buf), signalHash: try FfiConverterOptionString.read(from: &buf), issuerSchemaId: try FfiConverterUInt64.read(from: &buf), proof: try FfiConverterSequenceString.read(from: &buf), sessionNullifier: try FfiConverterSequenceString.read(from: &buf), expiresAtMin: try FfiConverterUInt64.read(from: &buf)
+        )
+        
+        case 5: return .v3(identifier: try FfiConverterString.read(from: &buf), signalHash: try FfiConverterString.read(from: &buf), proof: try FfiConverterString.read(from: &buf), merkleRoot: try FfiConverterString.read(from: &buf), nullifier: try FfiConverterString.read(from: &buf)
         )
         
         default: throw UniffiInternalError.unexpectedEnumCase
@@ -4838,8 +4925,19 @@ public struct FfiConverterTypeResponseItem: FfiConverterRustBuffer {
         switch value {
         
         
-        case let .v4(identifier,signalHash,issuerSchemaId,proof,nullifier,expiresAtMin):
+        case let .selfieV4(identifier,signalHash,issuerSchemaId,proof,nullifier,expiresAtMin,sybilScore):
             writeInt(&buf, Int32(1))
+            FfiConverterString.write(identifier, into: &buf)
+            FfiConverterOptionString.write(signalHash, into: &buf)
+            FfiConverterUInt64.write(issuerSchemaId, into: &buf)
+            FfiConverterSequenceString.write(proof, into: &buf)
+            FfiConverterString.write(nullifier, into: &buf)
+            FfiConverterUInt64.write(expiresAtMin, into: &buf)
+            FfiConverterUInt64.write(sybilScore, into: &buf)
+            
+        
+        case let .v4(identifier,signalHash,issuerSchemaId,proof,nullifier,expiresAtMin):
+            writeInt(&buf, Int32(2))
             FfiConverterString.write(identifier, into: &buf)
             FfiConverterOptionString.write(signalHash, into: &buf)
             FfiConverterUInt64.write(issuerSchemaId, into: &buf)
@@ -4848,8 +4946,19 @@ public struct FfiConverterTypeResponseItem: FfiConverterRustBuffer {
             FfiConverterUInt64.write(expiresAtMin, into: &buf)
             
         
+        case let .selfieSession(identifier,signalHash,issuerSchemaId,proof,sessionNullifier,expiresAtMin,sybilScore):
+            writeInt(&buf, Int32(3))
+            FfiConverterString.write(identifier, into: &buf)
+            FfiConverterOptionString.write(signalHash, into: &buf)
+            FfiConverterUInt64.write(issuerSchemaId, into: &buf)
+            FfiConverterSequenceString.write(proof, into: &buf)
+            FfiConverterSequenceString.write(sessionNullifier, into: &buf)
+            FfiConverterUInt64.write(expiresAtMin, into: &buf)
+            FfiConverterUInt64.write(sybilScore, into: &buf)
+            
+        
         case let .session(identifier,signalHash,issuerSchemaId,proof,sessionNullifier,expiresAtMin):
-            writeInt(&buf, Int32(2))
+            writeInt(&buf, Int32(4))
             FfiConverterString.write(identifier, into: &buf)
             FfiConverterOptionString.write(signalHash, into: &buf)
             FfiConverterUInt64.write(issuerSchemaId, into: &buf)
@@ -4859,7 +4968,7 @@ public struct FfiConverterTypeResponseItem: FfiConverterRustBuffer {
             
         
         case let .v3(identifier,signalHash,proof,merkleRoot,nullifier):
-            writeInt(&buf, Int32(3))
+            writeInt(&buf, Int32(5))
             FfiConverterString.write(identifier, into: &buf)
             FfiConverterString.write(signalHash, into: &buf)
             FfiConverterString.write(proof, into: &buf)
