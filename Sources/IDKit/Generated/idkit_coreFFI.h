@@ -438,6 +438,41 @@ uint64_t uniffi_idkit_fn_constructor_constraintnode_item(uint64_t request, RustC
 RustBuffer uniffi_idkit_fn_method_constraintnode_to_json(uint64_t ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CLONE_NULLIFIER
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CLONE_NULLIFIER
+uint64_t uniffi_idkit_fn_clone_nullifier(uint64_t handle, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_FREE_NULLIFIER
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_FREE_NULLIFIER
+void uniffi_idkit_fn_free_nullifier(uint64_t handle, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CONSTRUCTOR_NULLIFIER_FROM_CANONICAL_STRING
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CONSTRUCTOR_NULLIFIER_FROM_CANONICAL_STRING
+uint64_t uniffi_idkit_fn_constructor_nullifier_from_canonical_string(RustBuffer canonical_string, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CONSTRUCTOR_NULLIFIER_FROM_HEX
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CONSTRUCTOR_NULLIFIER_FROM_HEX
+uint64_t uniffi_idkit_fn_constructor_nullifier_from_hex(RustBuffer hex, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_NULLIFIER_TO_CANONICAL_STRING
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_NULLIFIER_TO_CANONICAL_STRING
+RustBuffer uniffi_idkit_fn_method_nullifier_to_canonical_string(uint64_t ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_NULLIFIER_TO_DECIMAL_STRING
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_NULLIFIER_TO_DECIMAL_STRING
+RustBuffer uniffi_idkit_fn_method_nullifier_to_decimal_string(uint64_t ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_NULLIFIER_TO_HEX
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_METHOD_NULLIFIER_TO_HEX
+RustBuffer uniffi_idkit_fn_method_nullifier_to_hex(uint64_t ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CLONE_CREDENTIALREQUEST
 #define UNIFFI_FFIDEF_UNIFFI_IDKIT_FN_CLONE_CREDENTIALREQUEST
 uint64_t uniffi_idkit_fn_clone_credentialrequest(uint64_t handle, RustCallStatus *_Nonnull out_status
@@ -1042,6 +1077,24 @@ uint16_t uniffi_idkit_checksum_method_constraintnode_to_json(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_NULLIFIER_TO_CANONICAL_STRING
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_NULLIFIER_TO_CANONICAL_STRING
+uint16_t uniffi_idkit_checksum_method_nullifier_to_canonical_string(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_NULLIFIER_TO_DECIMAL_STRING
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_NULLIFIER_TO_DECIMAL_STRING
+uint16_t uniffi_idkit_checksum_method_nullifier_to_decimal_string(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_NULLIFIER_TO_HEX
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_NULLIFIER_TO_HEX
+uint16_t uniffi_idkit_checksum_method_nullifier_to_hex(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_CREDENTIALREQUEST_CREDENTIAL_TYPE
 #define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_METHOD_CREDENTIALREQUEST_CREDENTIAL_TYPE
 uint16_t uniffi_idkit_checksum_method_credentialrequest_credential_type(void
@@ -1159,6 +1212,18 @@ uint16_t uniffi_idkit_checksum_constructor_constraintnode_from_json(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_CONSTRUCTOR_CONSTRAINTNODE_ITEM
 #define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_CONSTRUCTOR_CONSTRAINTNODE_ITEM
 uint16_t uniffi_idkit_checksum_constructor_constraintnode_item(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_CONSTRUCTOR_NULLIFIER_FROM_CANONICAL_STRING
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_CONSTRUCTOR_NULLIFIER_FROM_CANONICAL_STRING
+uint16_t uniffi_idkit_checksum_constructor_nullifier_from_canonical_string(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_CONSTRUCTOR_NULLIFIER_FROM_HEX
+#define UNIFFI_FFIDEF_UNIFFI_IDKIT_CHECKSUM_CONSTRUCTOR_NULLIFIER_FROM_HEX
+uint16_t uniffi_idkit_checksum_constructor_nullifier_from_hex(void
     
 );
 #endif

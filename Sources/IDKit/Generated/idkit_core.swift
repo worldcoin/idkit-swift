@@ -1926,6 +1926,194 @@ public func FfiConverterTypeIDKitRequestWrapper_lower(_ value: IdKitRequestWrapp
 
 
 /**
+ * A checked nullifier. Parsing its format does not verify a proof.
+ */
+public protocol NullifierProtocol: AnyObject, Sendable {
+    
+    /**
+     * Returns the protocol's `nil_` representation.
+     */
+    func toCanonicalString()  -> String
+    
+    /**
+     * Returns the exact decimal number.
+     */
+    func toDecimalString()  -> String
+    
+    /**
+     * Returns the fixed-width hex value.
+     */
+    func toHex()  -> String
+    
+}
+/**
+ * A checked nullifier. Parsing its format does not verify a proof.
+ */
+open class Nullifier: NullifierProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
+
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoHandle {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noHandle: NoHandle) {
+        self.handle = 0
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_idkit_fn_clone_nullifier(self.handle, $0) }
+    }
+    // No primary constructor declared for this class.
+
+    deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
+        try! rustCall { uniffi_idkit_fn_free_nullifier(handle, $0) }
+    }
+
+    
+    /**
+     * Creates a checked nullifier from the protocol's `nil_` representation.
+     *
+     * # Errors
+     * Returns an error for noncanonical or out-of-field input.
+     */
+public static func fromCanonicalString(canonicalString: String)throws  -> Nullifier  {
+    return try  FfiConverterTypeNullifier_lift(try rustCallWithError(FfiConverterTypeIdkitError_lift) {
+    uniffi_idkit_fn_constructor_nullifier_from_canonical_string(
+        FfiConverterString.lower(canonicalString),$0
+    )
+})
+}
+    
+    /**
+     * Creates a checked nullifier from hex.
+     *
+     * # Errors
+     * Returns an error for invalid or out-of-field input.
+     */
+public static func fromHex(hex: String)throws  -> Nullifier  {
+    return try  FfiConverterTypeNullifier_lift(try rustCallWithError(FfiConverterTypeIdkitError_lift) {
+    uniffi_idkit_fn_constructor_nullifier_from_hex(
+        FfiConverterString.lower(hex),$0
+    )
+})
+}
+    
+
+    
+    /**
+     * Returns the protocol's `nil_` representation.
+     */
+open func toCanonicalString() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_idkit_fn_method_nullifier_to_canonical_string(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Returns the exact decimal number.
+     */
+open func toDecimalString() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_idkit_fn_method_nullifier_to_decimal_string(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Returns the fixed-width hex value.
+     */
+open func toHex() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_idkit_fn_method_nullifier_to_hex(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+
+    
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeNullifier: FfiConverter {
+    typealias FfiType = UInt64
+    typealias SwiftType = Nullifier
+
+    public static func lift(_ handle: UInt64) throws -> Nullifier {
+        return Nullifier(unsafeFromHandle: handle)
+    }
+
+    public static func lower(_ value: Nullifier) -> UInt64 {
+        return value.uniffiCloneHandle()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Nullifier {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func write(_ value: Nullifier, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeNullifier_lift(_ handle: UInt64) throws -> Nullifier {
+    return try FfiConverterTypeNullifier.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeNullifier_lower(_ value: Nullifier) -> UInt64 {
+    return FfiConverterTypeNullifier.lower(value)
+}
+
+
+
+
+
+
+/**
  * Relying Party context for protocol-level proof requests
  *
  * Contains the RP-specific data needed to construct a `ProofRequest`.
@@ -2682,6 +2870,10 @@ public struct IdKitRequestConfig {
      * Optional connect URL mode (defaults to `Default`)
      */
     public var connectUrlMode: ConnectUrlMode?
+    /**
+     * Set to "create" to bind a new session to this uniqueness proof (v4 only).
+     */
+    public var sessionId: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -2726,7 +2918,10 @@ public struct IdKitRequestConfig {
          */environment: Environment?, 
         /**
          * Optional connect URL mode (defaults to `Default`)
-         */connectUrlMode: ConnectUrlMode?) {
+         */connectUrlMode: ConnectUrlMode?, 
+        /**
+         * Set to "create" to bind a new session to this uniqueness proof (v4 only).
+         */sessionId: String?) {
         self.appId = appId
         self.packageName = packageName
         self.packageVersion = packageVersion
@@ -2740,6 +2935,7 @@ public struct IdKitRequestConfig {
         self.returnTo = returnTo
         self.environment = environment
         self.connectUrlMode = connectUrlMode
+        self.sessionId = sessionId
     }
 
     
@@ -2770,7 +2966,8 @@ public struct FfiConverterTypeIDKitRequestConfig: FfiConverterRustBuffer {
                 overrideConnectBaseUrl: FfiConverterOptionString.read(from: &buf), 
                 returnTo: FfiConverterOptionString.read(from: &buf), 
                 environment: FfiConverterOptionTypeEnvironment.read(from: &buf), 
-                connectUrlMode: FfiConverterOptionTypeConnectUrlMode.read(from: &buf)
+                connectUrlMode: FfiConverterOptionTypeConnectUrlMode.read(from: &buf), 
+                sessionId: FfiConverterOptionString.read(from: &buf)
         )
     }
 
@@ -2788,6 +2985,7 @@ public struct FfiConverterTypeIDKitRequestConfig: FfiConverterRustBuffer {
         FfiConverterOptionString.write(value.returnTo, into: &buf)
         FfiConverterOptionTypeEnvironment.write(value.environment, into: &buf)
         FfiConverterOptionTypeConnectUrlMode.write(value.connectUrlMode, into: &buf)
+        FfiConverterOptionString.write(value.sessionId, into: &buf)
     }
 }
 
@@ -2831,7 +3029,7 @@ public struct IdKitResult: Equatable, Hashable {
     public var actionDescription: String?
     /**
      * Opaque session identifier in protocol string form (`session_<hex>`)
-     * (only present for session proofs)
+     * (present for session proofs and uniqueness proofs that create a session)
      */
     public var sessionId: String?
     /**
@@ -2874,7 +3072,7 @@ public struct IdKitResult: Equatable, Hashable {
          */actionDescription: String?, 
         /**
          * Opaque session identifier in protocol string form (`session_<hex>`)
-         * (only present for session proofs)
+         * (present for session proofs and uniqueness proofs that create a session)
          */sessionId: String?, 
         /**
          * Array of credential responses (always successful - errors at `BridgeResponse` level)
@@ -5823,6 +6021,15 @@ private let initializationResult: InitializationResult = {
     if (uniffi_idkit_checksum_method_constraintnode_to_json() != 43140) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_idkit_checksum_method_nullifier_to_canonical_string() != 62175) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_method_nullifier_to_decimal_string() != 54295) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_method_nullifier_to_hex() != 49086) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_idkit_checksum_method_credentialrequest_credential_type() != 47553) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -5881,6 +6088,12 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_idkit_checksum_constructor_constraintnode_item() != 25862) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_constructor_nullifier_from_canonical_string() != 9397) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_idkit_checksum_constructor_nullifier_from_hex() != 10592) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_idkit_checksum_constructor_credentialrequest_from_json() != 36059) {
